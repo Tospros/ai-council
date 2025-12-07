@@ -1,7 +1,6 @@
 from pydantic import BaseModel
 from typing import List, Optional
 
-
 class HistoryBase(BaseModel):
     prompt: str
     response: Optional[str]
