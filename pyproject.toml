@@ -9,7 +9,8 @@ readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
     "django (>=5.2.9,<6.0.0)",
-    "fastapi (>=0.124.0,<0.125.0)"
+    "fastapi (>=0.124.0,<0.125.0)",
+    "sqlalchemy (>=2.0.44,<3.0.0)"
 ]
 
 
