@@ -1,15 +1,18 @@
 [project]
-name = "ai-council"
+name = "ai-council-backend"
 version = "0.1.0"
-description = ""
+description = "Backend dla AI Council - proxy do modeli LLM"
 authors = [
     {name = "Antoni Zgajewski",email = "antek004@gmail.com"}
 ]
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.10"
 dependencies = [
-    "django (>=5.2.9,<6.0.0)",
-    "fastapi (>=0.124.0,<0.125.0)"
+    "fastapi (>=0.124.0,<0.125.0)",
+    "uvicorn (>=0.34.0,<0.35.0)",
+    "httpx (>=0.28.1,<0.29.0)",
+    "pydantic (>=2.10.6,<3.0.0)",
+    "python-dotenv (>=1.0.0,<2.0.0)"
 ]
 
 
