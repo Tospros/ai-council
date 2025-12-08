@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  backend:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - LLM_API_URL=http://llm-api:8080
+    depends_on:
+      - llm-api
+    networks:
+      - ai-council-network
+
+  llm-api:
+    build: ./ollama-models-with-api
+    ports:
+      - "8080:8080"
+    environment:
+      - TRANSFORMERS_CACHE=/app/models_cache
+    volumes:
+      - models_cache:/app/models_cache
+    deploy:
+      resources:
+        limits:
+          memory: 6G
+        reservations:
+          memory: 4G
+    networks:
+      - ai-council-network
+
+networks:
+  ai-council-network:
+    driver: bridge
+
+volumes:
+  models_cache:
