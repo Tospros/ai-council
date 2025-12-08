@@ -1,6 +1,17 @@
 version: '3.8'
 
 services:
+  frontend:
+    build: 
+      context: .
+      dockerfile: front/Dockerfile
+    ports:
+      - "8081:80"
+    depends_on:
+      - backend
+    networks:
+      - ai-council-network
+
   backend:
     build: .
     ports:

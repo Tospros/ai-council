@@ -85,6 +85,26 @@ curl http://localhost:8000/health
 
 ## Pełny przykład uruchomienia
 
+### Docker Compose (zalecane)
+
+```bash
+# Uruchom wszystkie serwisy (frontend, backend, LLM API)
+docker-compose up --build
+
+# W tle
+docker-compose up -d --build
+
+# Zatrzymaj
+docker-compose down
+```
+
+**Dostępne porty:**
+- Frontend: `http://localhost:8081`
+- Backend API: `http://localhost:8000`
+- LLM API: `http://localhost:8080`
+
+### Ręcznie (bez Dockera)
+
 ### 1. Uruchom LLM API (w osobnym terminalu)
 
 ```bash
