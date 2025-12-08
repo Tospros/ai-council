@@ -1,6 +1,6 @@
 // ===== Configuration =====
 const CONFIG = {
-    API_ENDPOINT: '/api/council',
+    API_ENDPOINT: 'https://python-backend.matra.cc',
     TIMEOUT: 120000, // 120 seconds
     DEBOUNCE_DELAY: 300,
     MAX_CHARS: 5000,
