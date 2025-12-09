@@ -1,7 +1,7 @@
-// ===== Configuration =====
+
 const CONFIG = {
     API_ENDPOINT: 'https://python-backend.matra.cc',
-    TIMEOUT: 120000, // 120 seconds
+    TIMEOUT: 120000, 
     DEBOUNCE_DELAY: 300,
     MAX_CHARS: 5000,
     MODELS: [
@@ -11,7 +11,7 @@ const CONFIG = {
     ]
 };
 
-// ===== State Management =====
+
 const state = {
     isProcessing: false,
     abortController: null,
@@ -19,7 +19,7 @@ const state = {
     currentRequest: null
 };
 
-// ===== DOM Elements =====
+
 const elements = {
     promptInput: document.getElementById('prompt-input'),
     submitBtn: document.getElementById('submit-btn'),
@@ -33,11 +33,9 @@ const elements = {
     toastContainer: document.getElementById('toast-container')
 };
 
-// ===== Utility Functions =====
 
-/**
- * Debounce function to limit function execution frequency
- */
+
+
 function debounce(func, wait) {
     let timeout;
     return function executedFunction(...args) {
@@ -50,26 +48,20 @@ function debounce(func, wait) {
     };
 }
 
-/**
- * Format time in seconds to readable format
- */
+
 function formatTime(milliseconds) {
     const seconds = (milliseconds / 1000).toFixed(2);
     return `${seconds}s`;
 }
 
-/**
- * Escape HTML to prevent XSS
- */
+
 function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
 }
 
-/**
- * Show toast notification
- */
+
 function showToast(message, type = 'success') {
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
@@ -87,18 +79,16 @@ function showToast(message, type = 'success') {
     
     elements.toastContainer.appendChild(toast);
     
-    // Auto remove after 5 seconds
+    
     setTimeout(() => {
         toast.style.animation = 'slideOut 0.3s ease';
         setTimeout(() => toast.remove(), 300);
     }, 5000);
 }
 
-// ===== UI Update Functions =====
 
-/**
- * Update character count display
- */
+
+
 function updateCharCount() {
     const length = elements.promptInput.value.length;
     elements.charCount.textContent = `${length} / ${CONFIG.MAX_CHARS}`;
@@ -110,9 +100,7 @@ function updateCharCount() {
     }
 }
 
-/**
- * Update LLM status display
- */
+
 function updateLLMStatus(llmId, status, time = null) {
     const statusElement = document.getElementById(`status-${llmId}`);
     const statusText = statusElement.querySelector('.status-text');
@@ -133,9 +121,7 @@ function updateLLMStatus(llmId, status, time = null) {
     }
 }
 
-/**
- * Show/hide loading skeleton
- */
+
 function toggleLoadingSkeleton(llmId, show) {
     const loading = document.getElementById(`loading-${llmId}`);
     const response = document.getElementById(`response-${llmId}`);
@@ -150,9 +136,7 @@ function toggleLoadingSkeleton(llmId, show) {
     }
 }
 
-/**
- * Display LLM response
- */
+
 function displayLLMResponse(llmId, text, isError = false) {
     const responseElement = document.getElementById(`response-${llmId}`);
     const errorElement = document.getElementById(`error-${llmId}`);
@@ -170,15 +154,13 @@ function displayLLMResponse(llmId, text, isError = false) {
     }
 }
 
-/**
- * Reset UI to initial state
- */
+
 function resetUI() {
-    // Hide results section
+    
     elements.resultsSection.classList.add('hidden');
     elements.arbiterSection.classList.add('hidden');
     
-    // Reset all LLM cards
+    
     for (let i = 1; i <= 3; i++) {
         updateLLMStatus(i, 'waiting');
         toggleLoadingSkeleton(i, false);
@@ -187,7 +169,7 @@ function resetUI() {
         document.getElementById(`time-${i}`).classList.add('hidden');
     }
     
-    // Reset arbiter
+    
     updateLLMStatus('arbiter', 'waiting');
     toggleLoadingSkeleton('arbiter', false);
     document.getElementById('response-arbiter').classList.add('hidden');
@@ -195,9 +177,7 @@ function resetUI() {
     document.getElementById('time-arbiter').classList.add('hidden');
 }
 
-/**
- * Update button states
- */
+
 function updateButtonStates(isProcessing) {
     const btnText = elements.submitBtn.querySelector('.btn-text');
     const btnLoader = elements.submitBtn.querySelector('.btn-loader');
@@ -215,17 +195,15 @@ function updateButtonStates(isProcessing) {
     }
 }
 
-// ===== API Functions =====
 
-/**
- * Simulate API call to LLM (replace with real API call)
- */
+
+
 async function callLLM(llmId, prompt, signal) {
     const startTime = Date.now();
     
     try {
-        // TODO: Replace this with actual API call
-        // Example:
+        
+        
         const response = await fetch(CONFIG.API_ENDPOINT, {
             method: 'POST',
             headers: {
@@ -251,7 +229,7 @@ async function callLLM(llmId, prompt, signal) {
             time: endTime - startTime
         };
         
-        // TEMPORARY: Simulated response for development
+        
         /*
         await new Promise(resolve => setTimeout(resolve, 2000 + Math.random() * 3000));
         
@@ -261,7 +239,7 @@ async function callLLM(llmId, prompt, signal) {
         
         const endTime = Date.now();
         
-        // Simulate random errors occasionally
+        
         if (Math.random() < 0.1) {
             throw new Error('Simulated API error');
         }
@@ -280,14 +258,12 @@ async function callLLM(llmId, prompt, signal) {
     }
 }
 
-/**
- * Call arbiter with all LLM responses
- */
+
 async function callArbiter(prompt, responses, signal) {
     const startTime = Date.now();
     
     try {
-        // TODO: Replace with actual API call
+        
         const response = await fetch(`${CONFIG.API_ENDPOINT}/arbiter`, {
             method: 'POST',
             headers: {
@@ -313,7 +289,7 @@ async function callArbiter(prompt, responses, signal) {
             time: endTime - startTime
         };
         
-        // TEMPORARY: Simulated response for development
+        
         /*
         await new Promise(resolve => setTimeout(resolve, 3000 + Math.random() * 2000));
         
@@ -337,15 +313,13 @@ async function callArbiter(prompt, responses, signal) {
     }
 }
 
-// ===== Main Process Functions =====
 
-/**
- * Process all LLMs in parallel
- */
+
+
 async function processLLMs(prompt, signal) {
     const results = [];
     
-    // Start all LLMs in parallel
+    
     const promises = CONFIG.MODELS.map(async (model) => {
         const llmId = model.id;
         
@@ -367,20 +341,18 @@ async function processLLMs(prompt, signal) {
         }
     });
     
-    // Wait for all LLMs to complete
+    
     try {
         const responses = await Promise.all(promises);
         return responses;
     } catch (error) {
-        // If any LLM fails, we might still want to continue with successful ones
-        // For now, we'll propagate the error
+        
+        
         throw error;
     }
 }
 
-/**
- * Process arbiter with collected responses
- */
+
 async function processArbiter(prompt, llmResponses, signal) {
     try {
         elements.arbiterSection.classList.remove('hidden');
@@ -401,13 +373,11 @@ async function processArbiter(prompt, llmResponses, signal) {
     }
 }
 
-/**
- * Main submission handler
- */
+
 async function handleSubmit() {
     const prompt = elements.promptInput.value.trim();
     
-    // Validation
+    
     if (!prompt) {
         showToast('Proszę wprowadzić pytanie', 'warning');
         return;
@@ -422,7 +392,7 @@ async function handleSubmit() {
         return;
     }
     
-    // Initialize
+    
     state.isProcessing = true;
     state.abortController = new AbortController();
     resetUI();
@@ -430,13 +400,13 @@ async function handleSubmit() {
     elements.resultsSection.classList.remove('hidden');
     
     try {
-        // Step 1: Process all LLMs
+        
         const llmResponses = await processLLMs(prompt, state.abortController.signal);
         
-        // Step 2: Process arbiter
+        
         const arbiterResponse = await processArbiter(prompt, llmResponses, state.abortController.signal);
         
-        // Add to history
+        
         addToHistory(prompt, llmResponses, arbiterResponse);
         
         showToast('Proces zakończony pomyślnie!', 'success');
@@ -456,9 +426,7 @@ async function handleSubmit() {
     }
 }
 
-/**
- * Handle cancel button click
- */
+
 function handleCancel() {
     if (state.abortController) {
         state.abortController.abort();
@@ -466,11 +434,9 @@ function handleCancel() {
     }
 }
 
-// ===== History Functions =====
 
-/**
- * Add entry to history
- */
+
+
 function addToHistory(prompt, llmResponses, arbiterResponse) {
     const entry = {
         id: Date.now(),
@@ -482,7 +448,7 @@ function addToHistory(prompt, llmResponses, arbiterResponse) {
     
     state.history.unshift(entry);
     
-    // Limit history to 10 entries
+    
     if (state.history.length > 10) {
         state.history = state.history.slice(0, 10);
     }
@@ -490,9 +456,7 @@ function addToHistory(prompt, llmResponses, arbiterResponse) {
     updateHistoryDisplay();
 }
 
-/**
- * Update history display
- */
+
 function updateHistoryDisplay() {
     if (state.history.length === 0) {
         elements.historySection.classList.add('hidden');
@@ -510,12 +474,12 @@ function updateHistoryDisplay() {
     `).join('');
 }
 
-// ===== Event Listeners =====
 
-// Character count update
+
+
 elements.promptInput.addEventListener('input', debounce(updateCharCount, 100));
 
-// Submit on Enter (Ctrl+Enter)
+
 elements.promptInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && e.ctrlKey) {
         e.preventDefault();
@@ -523,13 +487,13 @@ elements.promptInput.addEventListener('keydown', (e) => {
     }
 });
 
-// Submit button
+
 elements.submitBtn.addEventListener('click', handleSubmit);
 
-// Cancel button
+
 elements.cancelBtn.addEventListener('click', handleCancel);
 
-// ===== Initialization =====
+
 document.addEventListener('DOMContentLoaded', () => {
     console.log('AI Council initialized');
     updateCharCount();

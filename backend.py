@@ -5,18 +5,15 @@ import os
 from typing import Dict, Any
 from dotenv import load_dotenv
 
-# Załaduj zmienne z .env
 load_dotenv()
 
 app = FastAPI(title="AI Council Backend")
 
-# Konfiguracja URL do LLM API
 LLM_API_URL = os.getenv("LLM_API_URL", "http://localhost:8080")
-
 
 class PromptRequest(BaseModel):
     prompt: str
-    model: str  # "llama", "mistral", "gemma"
+    model: str  
 
 
 class ConsensusRequest(BaseModel):
@@ -24,7 +21,7 @@ class ConsensusRequest(BaseModel):
 
 
 async def query_llm(model: str, prompt: str) -> str:
-    """Wysyła zapytanie do wybranego modelu LLM"""
+    
     async with httpx.AsyncClient(timeout=120.0) as client:
         try:
             response = await client.post(
@@ -48,7 +45,6 @@ async def root():
 
 @app.post("/query")
 async def query_model(request: PromptRequest):
-    """Wysyła zapytanie do wybranego modelu"""
     if request.model not in ["llama", "mistral", "gemma"]:
         raise HTTPException(status_code=400, detail="Invalid model. Choose: llama, mistral, or gemma")
     
@@ -62,7 +58,6 @@ async def query_model(request: PromptRequest):
 
 @app.post("/consensus")
 async def get_consensus(request: ConsensusRequest):
-    """Wysyła zapytanie do wszystkich trzech modeli i zwraca ich odpowiedzi"""
     results = {}
     
     for model in ["llama", "mistral", "gemma"]:
@@ -80,7 +75,6 @@ async def get_consensus(request: ConsensusRequest):
 
 @app.get("/health")
 async def health_check():
-    """Sprawdza czy backend i LLM API działają"""
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             response = await client.get(f"{LLM_API_URL}/")
