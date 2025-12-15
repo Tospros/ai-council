@@ -116,12 +116,25 @@ docker compose -f docker-compose.ollama.yml up -d
 - Mistral: `http://localhost:11435`
 - Gemma: `http://localhost:11436`
 
+Dodatkowo uruchamia się reverse proxy Nginx na `http://localhost:8000`, które routuje po prefiksie ścieżki:
+- Llama przez Nginx: `http://localhost:8000/llama/...`
+- Mistral przez Nginx: `http://localhost:8000/mistral/...`
+- Gemma przez Nginx: `http://localhost:8000/gemma/...`
+
 Przykład zapytania (Ollama API):
 
 ```bash
 curl http://localhost:11434/api/generate \
   -H "Content-Type: application/json" \
   -d '{"model":"llama3.2:latest","prompt":"Cześć!"}'
+
+To samo przez Nginx (z prefiksem `/llama`):
+
+```bash
+curl http://localhost:8000/llama/api/generate \
+  -H "Content-Type: application/json" \
+  -d '{"model":"llama3.2:latest","prompt":"Cześć!"}'
+```
 ```
 
 ### Ręcznie (bez Dockera)
