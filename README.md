@@ -103,6 +103,27 @@ docker-compose down
 - Backend API: `http://localhost:8000`
 - LLM API: `http://localhost:8080`
 
+## 3 osobne kontenery Ollama (po 1 model na kontener)
+
+Jeśli chcesz mieć 3 niezależne instancje Ollamy (każda z innym modelem) z wbudowanym HTTP API Ollamy, użyj pliku `docker-compose.ollama.yml`:
+
+```bash
+docker compose -f docker-compose.ollama.yml up -d
+```
+
+**Porty i modele:**
+- Llama: `http://localhost:11434`
+- Mistral: `http://localhost:11435`
+- Gemma: `http://localhost:11436`
+
+Przykład zapytania (Ollama API):
+
+```bash
+curl http://localhost:11434/api/generate \
+  -H "Content-Type: application/json" \
+  -d '{"model":"llama3.2:latest","prompt":"Cześć!"}'
+```
+
 ### Ręcznie (bez Dockera)
 
 ### 1. Uruchom LLM API (w osobnym terminalu)
