@@ -1,166 +1,63 @@
-<!DOCTYPE html>
-<html lang="pl">
+<!doctype html>
+<html lang="en">
+
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Council - Multi-LLM Collaboration</title>
-    <link rel="stylesheet" href="style.css">
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AI Council</title>
+    <link rel="stylesheet" href="style.css" />
 </head>
+
 <body>
-    <div class="container">
-        <!-- Header -->
+    <main class="page">
         <header class="header">
-            <h1>AI Council</h1>
-            <p class="subtitle">Collaborative Intelligence from Multiple LLMs</p>
+            <h1 class="title">AI Council</h1>
+            <p class="subtitle">One prompt, three answers, your ratings</p>
         </header>
 
-        <!-- Input Section -->
-        <section class="input-section">
-            <div class="input-wrapper">
-                <label for="prompt-input">Wprowadź swoje pytanie:</label>
-                <textarea 
-                    id="prompt-input" 
-                    placeholder="Wpisz tutaj swoje pytanie, które zostanie przeanalizowane przez radę AI..."
-                    rows="4"
-                    maxlength="5000"
-                ></textarea>
-                <div class="input-footer">
-                    <span id="char-count" class="char-count">0 / 5000</span>
-                    <div class="button-group">
-                        <button id="cancel-btn" class="btn btn-secondary" disabled>
-                            Anuluj
-                        </button>
-                        <button id="submit-btn" class="btn btn-primary">
-                            <span class="btn-text">Wyślij</span>
-                            <span class="btn-loader hidden">
-                                <span class="spinner"></span>
-                            </span>
-                        </button>
+        <section class="card">
+            <form id="prompt-form" class="form">
+                <label class="label" for="prompt">Prompt</label>
+                <textarea id="prompt" class="textarea" rows="6" maxlength="8000"
+                    placeholder="Write a prompt..."></textarea>
+                <div class="row">
+                    <div class="meta">
+                        <span id="char-count">0</span>
+                        <span class="muted">/ 8000</span>
+                    </div>
+                    <div class="actions">
+                        <button id="send" class="btn primary" type="submit">Send</button>
                     </div>
                 </div>
-            </div>
+                <div id="status" class="status" role="status" aria-live="polite"></div>
+            </form>
         </section>
 
-        <!-- Results Section -->
-        <section id="results-section" class="results-section hidden">
-            <!-- LLM Responses -->
-            <div class="llm-responses">
-                <h2>Odpowiedzi od poszczególnych modeli:</h2>
-                <div class="responses-grid">
-                    <!-- LLM 1 -->
-                    <article class="llm-card" id="llm-1">
-                        <div class="llm-header">
-                            <div class="llm-title">
-                                <span class="llm-icon">🔵</span>
-                                <h3>GPT-4</h3>
-                            </div>
-                            <span class="llm-status" id="status-1">
-                                <span class="status-text">Oczekiwanie...</span>
-                                <span class="response-time hidden" id="time-1"></span>
-                            </span>
-                        </div>
-                        <div class="llm-body">
-                            <div class="loading-skeleton hidden" id="loading-1">
-                                <div class="skeleton-line"></div>
-                                <div class="skeleton-line"></div>
-                                <div class="skeleton-line short"></div>
-                            </div>
-                            <div class="llm-response hidden" id="response-1"></div>
-                            <div class="llm-error hidden" id="error-1"></div>
-                        </div>
-                    </article>
+        <section id="results" class="results hidden">
+            <div class="results-header">
+                <h2 class="h2">Responses</h2>
+                <div class="muted" id="call-id"></div>
+            </div>
 
-                    <!-- LLM 2 -->
-                    <article class="llm-card" id="llm-2">
-                        <div class="llm-header">
-                            <div class="llm-title">
-                                <span class="llm-icon">🟣</span>
-                                <h3>Claude</h3>
-                            </div>
-                            <span class="llm-status" id="status-2">
-                                <span class="status-text">Oczekiwanie...</span>
-                                <span class="response-time hidden" id="time-2"></span>
-                            </span>
-                        </div>
-                        <div class="llm-body">
-                            <div class="loading-skeleton hidden" id="loading-2">
-                                <div class="skeleton-line"></div>
-                                <div class="skeleton-line"></div>
-                                <div class="skeleton-line short"></div>
-                            </div>
-                            <div class="llm-response hidden" id="response-2"></div>
-                            <div class="llm-error hidden" id="error-2"></div>
-                        </div>
-                    </article>
+            <div class="grid" id="responses-grid"></div>
 
-                    <!-- LLM 3 -->
-                    <article class="llm-card" id="llm-3">
-                        <div class="llm-header">
-                            <div class="llm-title">
-                                <span class="llm-icon">🟢</span>
-                                <h3>Gemini</h3>
-                            </div>
-                            <span class="llm-status" id="status-3">
-                                <span class="status-text">Oczekiwanie...</span>
-                                <span class="response-time hidden" id="time-3"></span>
-                            </span>
-                        </div>
-                        <div class="llm-body">
-                            <div class="loading-skeleton hidden" id="loading-3">
-                                <div class="skeleton-line"></div>
-                                <div class="skeleton-line"></div>
-                                <div class="skeleton-line short"></div>
-                            </div>
-                            <div class="llm-response hidden" id="response-3"></div>
-                            <div class="llm-error hidden" id="error-3"></div>
-                        </div>
-                    </article>
+            <section class="card">
+                <div class="row">
+                    <div class="muted">Rate each answer (1-5)</div>
+                    <button id="submit-ratings" class="btn" type="button" disabled>Submit ratings</button>
                 </div>
-            </div>
-
-            <!-- Arbiter Response -->
-            <div class="arbiter-section hidden" id="arbiter-section">
-                <h2>Finalna synteza (Arbiter):</h2>
-                <article class="arbiter-card">
-                    <div class="arbiter-header">
-                        <div class="arbiter-title">
-                            <span class="arbiter-icon">⚖️</span>
-                            <h3>AI Council Decision</h3>
-                        </div>
-                        <span class="llm-status" id="status-arbiter">
-                            <span class="status-text">Oczekiwanie...</span>
-                            <span class="response-time hidden" id="time-arbiter"></span>
-                        </span>
-                    </div>
-                    <div class="arbiter-body">
-                        <div class="loading-skeleton hidden" id="loading-arbiter">
-                            <div class="skeleton-line"></div>
-                            <div class="skeleton-line"></div>
-                            <div class="skeleton-line"></div>
-                            <div class="skeleton-line short"></div>
-                        </div>
-                        <div class="arbiter-response hidden" id="response-arbiter"></div>
-                        <div class="llm-error hidden" id="error-arbiter"></div>
-                    </div>
-                </article>
-            </div>
+                <div id="ratings-status" class="status" role="status" aria-live="polite"></div>
+            </section>
         </section>
 
-        <!-- History Section (Optional) -->
-        <section id="history-section" class="history-section hidden">
-            <details>
-                <summary>
-                    <h2>Historia konwersacji</h2>
-                    <span class="history-count" id="history-count">0 zapytań</span>
-                </summary>
-                <div id="history-list" class="history-list"></div>
-            </details>
-        </section>
-    </div>
+        <footer class="footer">
+            <span class="muted">API_BASE_URL:</span>
+            <span class="mono" id="api-base"></span>
+        </footer>
+    </main>
 
-    <!-- Toast Notifications -->
-    <div id="toast-container" class="toast-container"></div>
-
+    <script src="config.js"></script>
     <script src="app.js"></script>
 </body>
+
 </html>

@@ -1,269 +1,247 @@
-
-const CONFIG = {
-    API_ENDPOINT: 'https://python-backend.matra.cc',
-    TIMEOUT: 120000, 
-    DEBOUNCE_DELAY: 300,
-    MAX_CHARS: 5000,
-    MODELS: [
-        { id: 1, name: 'GPT-4', icon: '🔵' },
-        { id: 2, name: 'Claude', icon: '🟣' },
-        { id: 3, name: 'Gemini', icon: '🟢' }
-    ]
-};
-
-
-const state = {
-    isProcessing: false,
-    abortController: null,
-    history: [],
-    currentRequest: null
-};
-
+const MODELS = ["llama", "mistral", "gemma"];
 
 const elements = {
-    promptInput: document.getElementById('prompt-input'),
-    submitBtn: document.getElementById('submit-btn'),
-    cancelBtn: document.getElementById('cancel-btn'),
-    charCount: document.getElementById('char-count'),
-    resultsSection: document.getElementById('results-section'),
-    arbiterSection: document.getElementById('arbiter-section'),
-    historySection: document.getElementById('history-section'),
-    historyList: document.getElementById('history-list'),
-    historyCount: document.getElementById('history-count'),
-    toastContainer: document.getElementById('toast-container')
+    form: document.getElementById("prompt-form"),
+    prompt: document.getElementById("prompt"),
+    send: document.getElementById("send"),
+    status: document.getElementById("status"),
+    results: document.getElementById("results"),
+    grid: document.getElementById("responses-grid"),
+    charCount: document.getElementById("char-count"),
+    callId: document.getElementById("call-id"),
+    apiBase: document.getElementById("api-base"),
+    submitRatings: document.getElementById("submit-ratings"),
+    ratingsStatus: document.getElementById("ratings-status")
 };
 
+const state = {
+    callId: null,
+    responses: null,
+    grades: { llama: null, mistral: null, gemma: null },
+    busy: false
+};
 
-
-
-function debounce(func, wait) {
-    let timeout;
-    return function executedFunction(...args) {
-        const later = () => {
-            clearTimeout(timeout);
-            func(...args);
-        };
-        clearTimeout(timeout);
-        timeout = setTimeout(later, wait);
-    };
+function getApiBaseUrl() {
+    const fromConfig = window.APP_CONFIG && typeof window.APP_CONFIG.API_BASE_URL === "string" ? window.APP_CONFIG.API_BASE_URL.trim() : "";
+    return fromConfig || "/api";
 }
 
-
-function formatTime(milliseconds) {
-    const seconds = (milliseconds / 1000).toFixed(2);
-    return `${seconds}s`;
+function buildUrl(base, path) {
+    const baseStr = (base || "").trim();
+    const pathStr = path.startsWith("/") ? path : `/${path}`;
+    if (!baseStr) return pathStr;
+    if (/^https?:\/\//i.test(baseStr)) return baseStr.replace(/\/$/, "") + pathStr;
+    if (baseStr.startsWith("/")) {
+        const prefix = baseStr.replace(/\/$/, "");
+        const lowerPrefix = prefix.toLowerCase();
+        const lowerPath = pathStr.toLowerCase();
+        if (lowerPath === lowerPrefix || lowerPath.startsWith(lowerPrefix + "/")) return pathStr;
+        return prefix + pathStr;
+    }
+    return baseStr.replace(/\/$/, "") + pathStr;
 }
 
-
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
+function setStatus(text, type) {
+    elements.status.textContent = text || "";
+    elements.status.dataset.type = type || "";
 }
 
-
-function showToast(message, type = 'success') {
-    const toast = document.createElement('div');
-    toast.className = `toast ${type}`;
-    
-    const icons = {
-        success: '✅',
-        error: '❌',
-        warning: '⚠️'
-    };
-    
-    toast.innerHTML = `
-        <span class="toast-icon">${icons[type]}</span>
-        <span class="toast-message">${escapeHtml(message)}</span>
-    `;
-    
-    elements.toastContainer.appendChild(toast);
-    
-    
-    setTimeout(() => {
-        toast.style.animation = 'slideOut 0.3s ease';
-        setTimeout(() => toast.remove(), 300);
-    }, 5000);
+function setRatingsStatus(text, type) {
+    elements.ratingsStatus.textContent = text || "";
+    elements.ratingsStatus.dataset.type = type || "";
 }
 
+function setBusy(busy) {
+    state.busy = busy;
+    elements.send.disabled = busy;
+    elements.prompt.disabled = busy;
+}
 
+function newCallId() {
+    if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
+    return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
 
+function escapeText(value) {
+    const div = document.createElement("div");
+    div.textContent = value == null ? "" : String(value);
+    return div.textContent;
+}
 
 function updateCharCount() {
-    const length = elements.promptInput.value.length;
-    elements.charCount.textContent = `${length} / ${CONFIG.MAX_CHARS}`;
-    
-    if (length > CONFIG.MAX_CHARS * 0.9) {
-        elements.charCount.style.color = 'var(--error-color)';
-    } else {
-        elements.charCount.style.color = 'var(--text-tertiary)';
-    }
+    elements.charCount.textContent = String(elements.prompt.value.length);
 }
 
-
-function updateLLMStatus(llmId, status, time = null) {
-    const statusElement = document.getElementById(`status-${llmId}`);
-    const statusText = statusElement.querySelector('.status-text');
-    const timeElement = document.getElementById(`time-${llmId}`);
-    
-    const statusMessages = {
-        waiting: 'Oczekiwanie...',
-        loading: 'Przetwarzanie...',
-        success: 'Gotowe',
-        error: 'Błąd'
-    };
-    
-    statusText.textContent = statusMessages[status] || status;
-    
-    if (time !== null) {
-        timeElement.textContent = formatTime(time);
-        timeElement.classList.remove('hidden');
-    }
+function gradesReady() {
+    return MODELS.every((m) => Number.isInteger(state.grades[m]) && state.grades[m] >= 1 && state.grades[m] <= 5);
 }
 
-
-function toggleLoadingSkeleton(llmId, show) {
-    const loading = document.getElementById(`loading-${llmId}`);
-    const response = document.getElementById(`response-${llmId}`);
-    const error = document.getElementById(`error-${llmId}`);
-    
-    if (show) {
-        loading.classList.remove('hidden');
-        response.classList.add('hidden');
-        error.classList.add('hidden');
-    } else {
-        loading.classList.add('hidden');
-    }
+function updateSubmitRatingsEnabled() {
+    elements.submitRatings.disabled = !state.callId || !state.responses || !gradesReady();
 }
 
+function renderResponses(responses) {
+    elements.grid.textContent = "";
+    MODELS.forEach((model) => {
+        const card = document.createElement("article");
+        card.className = "card";
 
-function displayLLMResponse(llmId, text, isError = false) {
-    const responseElement = document.getElementById(`response-${llmId}`);
-    const errorElement = document.getElementById(`error-${llmId}`);
-    
-    toggleLoadingSkeleton(llmId, false);
-    
-    if (isError) {
-        errorElement.textContent = text;
-        errorElement.classList.remove('hidden');
-        responseElement.classList.add('hidden');
-    } else {
-        responseElement.textContent = text;
-        responseElement.classList.remove('hidden');
-        errorElement.classList.add('hidden');
-    }
+        const header = document.createElement("div");
+        header.className = "row";
+
+        const left = document.createElement("div");
+        const h = document.createElement("div");
+        h.className = "h3";
+        h.textContent = model;
+        left.appendChild(h);
+
+        const rating = document.createElement("div");
+        rating.className = "rating";
+
+        for (let i = 1; i <= 5; i++) {
+            const label = document.createElement("label");
+            label.className = "rate";
+
+            const input = document.createElement("input");
+            input.type = "radio";
+            input.name = `rate-${model}`;
+            input.value = String(i);
+            input.checked = state.grades[model] === i;
+            input.addEventListener("change", () => {
+                state.grades[model] = i;
+                setRatingsStatus("", "");
+                updateSubmitRatingsEnabled();
+            });
+
+            const span = document.createElement("span");
+            span.textContent = String(i);
+
+            label.appendChild(input);
+            label.appendChild(span);
+            rating.appendChild(label);
+        }
+
+        header.appendChild(left);
+        header.appendChild(rating);
+
+        const body = document.createElement("pre");
+        body.className = "response";
+        body.textContent = escapeText(responses && responses[model]);
+
+        card.appendChild(header);
+        card.appendChild(body);
+        elements.grid.appendChild(card);
+    });
 }
 
-
-function resetUI() {
-    
-    elements.resultsSection.classList.add('hidden');
-    elements.arbiterSection.classList.add('hidden');
-    
-    
-    for (let i = 1; i <= 3; i++) {
-        updateLLMStatus(i, 'waiting');
-        toggleLoadingSkeleton(i, false);
-        document.getElementById(`response-${i}`).classList.add('hidden');
-        document.getElementById(`error-${i}`).classList.add('hidden');
-        document.getElementById(`time-${i}`).classList.add('hidden');
-    }
-    
-    
-    updateLLMStatus('arbiter', 'waiting');
-    toggleLoadingSkeleton('arbiter', false);
-    document.getElementById('response-arbiter').classList.add('hidden');
-    document.getElementById('error-arbiter').classList.add('hidden');
-    document.getElementById('time-arbiter').classList.add('hidden');
-}
-
-
-function updateButtonStates(isProcessing) {
-    const btnText = elements.submitBtn.querySelector('.btn-text');
-    const btnLoader = elements.submitBtn.querySelector('.btn-loader');
-    
-    if (isProcessing) {
-        elements.submitBtn.disabled = true;
-        elements.cancelBtn.disabled = false;
-        btnText.classList.add('hidden');
-        btnLoader.classList.remove('hidden');
-    } else {
-        elements.submitBtn.disabled = false;
-        elements.cancelBtn.disabled = true;
-        btnText.classList.remove('hidden');
-        btnLoader.classList.add('hidden');
-    }
-}
-
-
-
-
-async function callLLM(llmId, prompt, signal) {
-    const startTime = Date.now();
-    
+async function postJson(url, payload, timeoutMs) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
-        
-        
-        const response = await fetch(CONFIG.API_ENDPOINT, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                llm_id: llmId,
-                prompt: prompt
-            }),
-            signal: signal
+        const res = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+            signal: controller.signal
         });
-        
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+        const text = await res.text();
+        let json = null;
+        try {
+            json = text ? JSON.parse(text) : null;
+        } catch {
+            json = null;
         }
-        
-        const data = await response.json();
-        const endTime = Date.now();
-        
-        return {
-            success: true,
-            response: data.response,
-            time: endTime - startTime
-        };
-        
-        
-        /*
-        await new Promise(resolve => setTimeout(resolve, 2000 + Math.random() * 3000));
-        
-        if (signal.aborted) {
-            throw new Error('Request aborted');
+        if (!res.ok) {
+            const msg = json && (json.detail || json.error || json.message) ? String(json.detail || json.error || json.message) : text || `HTTP ${res.status}`;
+            throw new Error(msg);
         }
-        
-        const endTime = Date.now();
-        
-        
-        if (Math.random() < 0.1) {
-            throw new Error('Simulated API error');
-        }
-        
-        return {
-            success: true,
-            response: `To jest odpowiedź od modelu ${CONFIG.MODELS[llmId - 1].name} na pytanie: "${prompt}". Lorem ipsum dolor sit amet, consectetur adipiscing elit.`,
-            time: endTime - startTime
-        };
-        */
-    } catch (error) {
-        if (error.name === 'AbortError') {
-            throw new Error('Request cancelled');
-        }
-        throw error;
+        return json;
+    } finally {
+        clearTimeout(timeout);
     }
 }
+
+async function handleSubmit(event) {
+    event.preventDefault();
+    if (state.busy) return;
+
+    const prompt = elements.prompt.value.trim();
+    if (!prompt) {
+        setStatus("Prompt is required", "error");
+        return;
+    }
+
+    setStatus("Sending...", "info");
+    setRatingsStatus("", "");
+    setBusy(true);
+
+    state.callId = newCallId();
+    state.responses = null;
+    state.grades = { llama: null, mistral: null, gemma: null };
+    elements.callId.textContent = `call id: ${state.callId}`;
+
+    const base = getApiBaseUrl();
+    const promptUrl = buildUrl(base, "/prompt-all-models");
+
+    try {
+        const data = await postJson(promptUrl, { prompt }, 180000);
+        if (!data || typeof data !== "object") throw new Error("Invalid response");
+        state.responses = data;
+        elements.results.classList.remove("hidden");
+        renderResponses(state.responses);
+        setStatus("Done", "success");
+    } catch (e) {
+        setStatus(String(e && e.message ? e.message : e), "error");
+    } finally {
+        updateSubmitRatingsEnabled();
+        setBusy(false);
+    }
+}
+
+async function submitRatings() {
+    if (state.busy) return;
+    if (!state.callId || !state.responses) {
+        setRatingsStatus("No completed call to rate", "error");
+        return;
+    }
+    if (!gradesReady()) {
+        setRatingsStatus("Please rate all three answers", "error");
+        return;
+    }
+
+    setRatingsStatus("Submitting...", "info");
+    elements.submitRatings.disabled = true;
+
+    const base = getApiBaseUrl();
+    const ratingUrl = buildUrl(base, "/api/answers");
+
+    try {
+        await postJson(ratingUrl, { id: state.callId, grades: state.grades }, 60000);
+        setRatingsStatus("Ratings saved", "success");
+    } catch (e) {
+        setRatingsStatus(String(e && e.message ? e.message : e), "error");
+    } finally {
+        updateSubmitRatingsEnabled();
+    }
+}
+
+function init() {
+    const base = getApiBaseUrl();
+    elements.apiBase.textContent = base;
+    updateCharCount();
+    elements.prompt.addEventListener("input", updateCharCount);
+    elements.form.addEventListener("submit", handleSubmit);
+    elements.submitRatings.addEventListener("click", submitRatings);
+}
+
+init();
 
 
 async function callArbiter(prompt, responses, signal) {
     const startTime = Date.now();
-    
+
     try {
-        
+
         const response = await fetch(`${CONFIG.API_ENDPOINT}/arbiter`, {
             method: 'POST',
             headers: {
@@ -275,21 +253,21 @@ async function callArbiter(prompt, responses, signal) {
             }),
             signal: signal
         });
-        
+
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
-        
+
         const data = await response.json();
         const endTime = Date.now();
-        
+
         return {
             success: true,
             response: data.synthesis,
             time: endTime - startTime
         };
-        
-        
+
+
         /*
         await new Promise(resolve => setTimeout(resolve, 3000 + Math.random() * 2000));
         
@@ -318,20 +296,20 @@ async function callArbiter(prompt, responses, signal) {
 
 async function processLLMs(prompt, signal) {
     const results = [];
-    
-    
+
+
     const promises = CONFIG.MODELS.map(async (model) => {
         const llmId = model.id;
-        
+
         try {
             updateLLMStatus(llmId, 'loading');
             toggleLoadingSkeleton(llmId, true);
-            
+
             const result = await callLLM(llmId, prompt, signal);
-            
+
             displayLLMResponse(llmId, result.response);
             updateLLMStatus(llmId, 'success', result.time);
-            
+
             return result.response;
         } catch (error) {
             console.error(`LLM ${llmId} error:`, error);
@@ -340,14 +318,14 @@ async function processLLMs(prompt, signal) {
             throw error;
         }
     });
-    
-    
+
+
     try {
         const responses = await Promise.all(promises);
         return responses;
     } catch (error) {
-        
-        
+
+
         throw error;
     }
 }
@@ -358,12 +336,12 @@ async function processArbiter(prompt, llmResponses, signal) {
         elements.arbiterSection.classList.remove('hidden');
         updateLLMStatus('arbiter', 'loading');
         toggleLoadingSkeleton('arbiter', true);
-        
+
         const result = await callArbiter(prompt, llmResponses, signal);
-        
+
         displayLLMResponse('arbiter', result.response);
         updateLLMStatus('arbiter', 'success', result.time);
-        
+
         return result.response;
     } catch (error) {
         console.error('Arbiter error:', error);
@@ -376,44 +354,44 @@ async function processArbiter(prompt, llmResponses, signal) {
 
 async function handleSubmit() {
     const prompt = elements.promptInput.value.trim();
-    
-    
+
+
     if (!prompt) {
         showToast('Proszę wprowadzić pytanie', 'warning');
         return;
     }
-    
+
     if (prompt.length > CONFIG.MAX_CHARS) {
         showToast(`Pytanie jest za długie (max ${CONFIG.MAX_CHARS} znaków)`, 'error');
         return;
     }
-    
+
     if (state.isProcessing) {
         return;
     }
-    
-    
+
+
     state.isProcessing = true;
     state.abortController = new AbortController();
     resetUI();
     updateButtonStates(true);
     elements.resultsSection.classList.remove('hidden');
-    
+
     try {
-        
+
         const llmResponses = await processLLMs(prompt, state.abortController.signal);
-        
-        
+
+
         const arbiterResponse = await processArbiter(prompt, llmResponses, state.abortController.signal);
-        
-        
+
+
         addToHistory(prompt, llmResponses, arbiterResponse);
-        
+
         showToast('Proces zakończony pomyślnie!', 'success');
-        
+
     } catch (error) {
         console.error('Processing error:', error);
-        
+
         if (error.message === 'Request cancelled') {
             showToast('Żądanie zostało anulowane', 'warning');
         } else {
@@ -445,14 +423,14 @@ function addToHistory(prompt, llmResponses, arbiterResponse) {
         llmResponses: llmResponses,
         arbiterResponse: arbiterResponse
     };
-    
+
     state.history.unshift(entry);
-    
-    
+
+
     if (state.history.length > 10) {
         state.history = state.history.slice(0, 10);
     }
-    
+
     updateHistoryDisplay();
 }
 
@@ -462,10 +440,10 @@ function updateHistoryDisplay() {
         elements.historySection.classList.add('hidden');
         return;
     }
-    
+
     elements.historySection.classList.remove('hidden');
     elements.historyCount.textContent = `${state.history.length} ${state.history.length === 1 ? 'zapytanie' : 'zapytań'}`;
-    
+
     elements.historyList.innerHTML = state.history.map(entry => `
         <div class="history-item">
             <div class="history-question">${escapeHtml(entry.prompt.substring(0, 100))}${entry.prompt.length > 100 ? '...' : ''}</div>
