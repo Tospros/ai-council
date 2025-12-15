@@ -14,17 +14,22 @@ services:
 
   backend:
     profiles: ["stack"]
-    build: .
+    build: 
+      context: .
+      dockerfile: docker/Dockerfile
     ports:
       - "8000:8000"
     environment:
       - LLM_API_URL=http://llm-api:8080
     depends_on:
       - llm-api
+      - postgres
     networks:
       - ai-council-network
-
+    command: ["./wait-for", "postgres:5432", "--", "/ai-council/backend"]
+    
   postgres:
+    profiles: ["stack"]
     container_name: postgres
     hostname: postgres
     image: postgres:12-alpine
@@ -61,3 +66,4 @@ networks:
 
 volumes:
   models_cache:
+  pgdata:
