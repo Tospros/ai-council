@@ -4,8 +4,8 @@ WORKDIR /app
 
 RUN pip install poetry
 
-COPY pyproject.toml ./
-COPY backend.py ./
+COPY ../pyproject.toml ./
+COPY ../backend.py ./
 COPY .env.example ./.env
 
 RUN poetry config virtualenvs.create false && \
