@@ -8,13 +8,12 @@ services:
     ports:
       - "8081:80"
     environment:
-      - API_BASE_URL=/api
-    depends_on:
-      - backend
+      - API_BASE_URL=${API_BASE_URL:-http://host.docker.internal:8000}
     networks:
       - ai-council-network
 
   backend:
+    profiles: ["stack"]
     build: .
     ports:
       - "8000:8000"
@@ -26,6 +25,7 @@ services:
       - ai-council-network
 
   llm-api:
+    profiles: ["stack"]
     build: ./ollama-models-with-api
     ports:
       - "8080:8080"
