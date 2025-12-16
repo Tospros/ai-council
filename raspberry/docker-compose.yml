@@ -13,22 +13,15 @@ services:
       - ai-council-network
 
   backend:
-    profiles: ["stack"]
     build: 
       context: .
       dockerfile: docker/Dockerfile
     ports:
       - "8000:8000"
-    environment:
-      - LLM_API_URL=http://llm-api:8080
-    depends_on:
-      - llm-api
-      - postgres
     env_file:
       - docker/.env
     networks:
       - ai-council-network
-    command: ["./wait-for", "postgres:5432", "--", "/ai-council/backend"]
     
   postgres:
     profiles: ["stack"]
@@ -43,24 +36,6 @@ services:
     volumes:
       - 'pgdata:/var/lib/postgresql/data'
       - './docker/database:/docker-entrypoint-initdb.d'
-
-  llm-api:
-    profiles: ["stack"]
-    build: ./ollama-models-with-api
-    ports:
-      - "8080:8080"
-    environment:
-      - TRANSFORMERS_CACHE=/app/models_cache
-    volumes:
-      - models_cache:/app/models_cache
-    deploy:
-      resources:
-        limits:
-          memory: 6G
-        reservations:
-          memory: 4G
-    networks:
-      - ai-council-network
 
   nginx:
     image: nginx:alpine
