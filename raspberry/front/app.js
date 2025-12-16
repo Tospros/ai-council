@@ -181,7 +181,7 @@ async function handleSubmit(event) {
     elements.callId.textContent = `call id: ${state.callId}`;
 
     const base = getApiBaseUrl();
-    const promptUrl = buildUrl(base, "/prompt-all-models");
+    const promptUrl = buildUrl(base, "/api/prompt-all-models");
 
     try {
         const data = await postJson(promptUrl, { prompt }, 180000);
