@@ -348,7 +348,6 @@ body {
     flex-wrap: wrap;
 }
 
-/* ===== Arbiter Section ===== */
 .arbiter-section {
     margin-bottom: 2rem;
 }
@@ -409,7 +408,6 @@ body {
     word-wrap: break-word;
 }
 
-/* ===== History Section ===== */
 .history-section {
     background: var(--bg-primary);
     border-radius: var(--border-radius);
@@ -480,7 +478,6 @@ body {
     color: var(--text-tertiary);
 }
 
-/* ===== Toast Notifications ===== */
 .toast-container {
     position: fixed;
     top: 20px;
@@ -537,12 +534,10 @@ body {
     color: var(--text-primary);
 }
 
-/* ===== Utility Classes ===== */
 .hidden {
     display: none !important;
 }
 
-/* ===== Responsive Design ===== */
 @media (max-width: 1024px) {
     .responses-grid {
         grid-template-columns: 1fr;
