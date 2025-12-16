@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
 import uvicorn
@@ -9,6 +10,14 @@ import os
 load_dotenv()
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 API_URL_1 = os.getenv("API_URL_1", "http://192.168.1.20/api/generate1")
 API_URL_2 = os.getenv("API_URL_2", "http://192.168.1.20/api/generate2")
@@ -40,11 +49,11 @@ async def query_endpoint(client: httpx.AsyncClient, url: str, model_name: str, p
     except httpx.TimeoutException:
         return model_name, f"Timeout po {TIMEOUT}s"
     except Exception as e:
-        return model_name, f"Error: {str(e)}"
+        return model_name, f"Błąd: {str(e)}"
 
 
-@app.post("/generate", response_model=ModelResponse)
-async def generate_responses(request: PromptRequest):
+@app.post("/api/prompt-all-models")
+async def prompt_all_models(request: PromptRequest):
     endpoints = [
         (API_URL_1, MODEL_NAME_1),
         (API_URL_2, MODEL_NAME_2),
@@ -56,7 +65,7 @@ async def generate_responses(request: PromptRequest):
         results = await asyncio.gather(*tasks)
 
     responses = {model: response for model, response in results}
-    return ModelResponse(responses=responses)
+    return responses
 
 
 if __name__ == "__main__":
