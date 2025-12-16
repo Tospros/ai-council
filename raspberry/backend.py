@@ -19,12 +19,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-API_URL_1 = os.getenv("API_URL_1", "http://192.168.1.20/api/generate1")
-API_URL_2 = os.getenv("API_URL_2", "http://192.168.1.20/api/generate2")
-API_URL_3 = os.getenv("API_URL_3", "http://192.168.1.20/api/generate3")
-MODEL_NAME_1 = os.getenv("MODEL_NAME_1", "model1")
-MODEL_NAME_2 = os.getenv("MODEL_NAME_2", "model2")
-MODEL_NAME_3 = os.getenv("MODEL_NAME_3", "model3")
+API_URL_1 = os.getenv("API_URL_1")
+API_URL_2 = os.getenv("API_URL_2")
+API_URL_3 = os.getenv("API_URL_3")
+MODEL_NAME_1 = os.getenv("MODEL_NAME_1")
+MODEL_NAME_2 = os.getenv("MODEL_NAME_2")
+MODEL_NAME_3 = os.getenv("MODEL_NAME_3")
 TIMEOUT = int(os.getenv("TIMEOUT"))
 
 
