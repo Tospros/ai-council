@@ -24,6 +24,8 @@ services:
     depends_on:
       - llm-api
       - postgres
+    env_file:
+      - docker/.env
     networks:
       - ai-council-network
     command: ["./wait-for", "postgres:5432", "--", "/ai-council/backend"]
