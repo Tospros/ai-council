@@ -40,7 +40,7 @@ async def query_endpoint(client: httpx.AsyncClient, url: str, model_name: str, p
     except httpx.TimeoutException:
         return model_name, f"Timeout po {TIMEOUT}s"
     except Exception as e:
-        return model_name, f"Błąd: {str(e)}"
+        return model_name, f"Error: {str(e)}"
 
 
 @app.post("/generate", response_model=ModelResponse)
