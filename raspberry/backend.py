@@ -40,12 +40,20 @@ async def query_endpoint(client: httpx.AsyncClient, url: str, model_name: str, p
     try:
         response = await client.post(
             url,
-            json={"model": model_name, "prompt": prompt, "stream": True},
+            json={"model": model_name, "prompt": prompt, "stream": False},
             timeout=TIMEOUT
         )
-        print("model", model_name, "prompt", prompt, "stream", True)
         response.raise_for_status()
-        data = response.json()
+        
+        text = response.text.strip()
+        lines = [line for line in text.split('\n') if line.strip()]
+        
+        if not lines:
+            return model_name, "Pusta odpowiedź"
+        
+        import json
+        data = json.loads(lines[-1])
+        
         return model_name, data.get("response", str(data))
     except httpx.TimeoutException:
         return model_name, f"Timeout po {TIMEOUT}s"
