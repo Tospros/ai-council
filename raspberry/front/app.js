@@ -1,4 +1,4 @@
-let MODELS = ["tinyllama", "dolphin-mistral", "gemma:2b"];
+let MODELS = ["llama", "mistral", "gemma"];
 
 const elements = {
     form: document.getElementById("prompt-form"),
