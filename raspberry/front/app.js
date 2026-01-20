@@ -1,4 +1,4 @@
-const MODELS = ["llama", "mistral", "gemma"];
+let MODELS = ["llama", "mistral", "gemma"];
 
 const elements = {
     form: document.getElementById("prompt-form"),
@@ -17,9 +17,14 @@ const elements = {
 const state = {
     callId: null,
     responses: null,
-    grades: { llama: null, mistral: null, gemma: null },
+    grades: {},
     busy: false
 };
+
+function initGrades() {
+    state.grades = {};
+    MODELS.forEach(m => state.grades[m] = null);
+}
 
 function getApiBaseUrl() {
     const fromConfig = window.APP_CONFIG && typeof window.APP_CONFIG.API_BASE_URL === "string" ? window.APP_CONFIG.API_BASE_URL.trim() : "";
@@ -73,7 +78,7 @@ function updateCharCount() {
 }
 
 function gradesReady() {
-    return MODELS.every((m) => Number.isInteger(state.grades[m]) && state.grades[m] >= 1 && state.grades[m] <= 5);
+    return MODELS.length > 0 && MODELS.every((m) => Number.isInteger(state.grades[m]) && state.grades[m] >= 1 && state.grades[m] <= 5);
 }
 
 function updateSubmitRatingsEnabled() {
@@ -175,10 +180,10 @@ async function handleSubmit(event) {
     setRatingsStatus("", "");
     setBusy(true);
 
-    state.callId = newCallId();
+    state.callId = null;
     state.responses = null;
-    state.grades = { llama: null, mistral: null, gemma: null };
-    elements.callId.textContent = `call id: ${state.callId}`;
+    initGrades();
+    elements.callId.textContent = ``;
 
     const base = getApiBaseUrl();
     const promptUrl = buildUrl(base, "/api/prompt-all-models");
@@ -186,6 +191,14 @@ async function handleSubmit(event) {
     try {
         const data = await postJson(promptUrl, { prompt }, 180000);
         if (!data || typeof data !== "object") throw new Error("Invalid response");
+        
+        // Extract session_id from response
+        if (data.session_id) {
+            state.callId = data.session_id;
+            elements.callId.textContent = `session: ${state.callId.substring(0, 8)}...`;
+            delete data.session_id;
+        }
+        
         state.responses = data;
         elements.results.classList.remove("hidden");
         renderResponses(state.responses);
@@ -228,10 +241,30 @@ async function submitRatings() {
 function init() {
     const base = getApiBaseUrl();
     elements.apiBase.textContent = base;
+    initGrades();
     updateCharCount();
     elements.prompt.addEventListener("input", updateCharCount);
     elements.form.addEventListener("submit", handleSubmit);
     elements.submitRatings.addEventListener("click", submitRatings);
+    
+    // Fetch available models from backend
+    fetchModels(base);
+}
+
+async function fetchModels(base) {
+    try {
+        const modelsUrl = buildUrl(base, "/api/models");
+        const res = await fetch(modelsUrl);
+        if (res.ok) {
+            const data = await res.json();
+            if (data.models && Array.isArray(data.models)) {
+                MODELS = data.models;
+                initGrades();
+            }
+        }
+    } catch (e) {
+        console.warn("Could not fetch models, using defaults:", e);
+    }
 }
 
 init();
