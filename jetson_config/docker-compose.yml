@@ -1,0 +1,66 @@
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    hostname: ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+      - OLLAMA_ORIGINS=*
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    networks:
+      - ai-council-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  ollama-setup:
+    image: curlimages/curl:latest
+    container_name: ollama-setup
+    depends_on:
+      ollama:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "Pulling models..."
+        curl -X POST http://ollama:11434/api/pull -d '{"name": "llama3.2:1b"}'
+        curl -X POST http://ollama:11434/api/pull -d '{"name": "mistral:7b"}'
+        curl -X POST http://ollama:11434/api/pull -d '{"name": "gemma:2b"}'
+        echo "Models pulled successfully!"
+    networks:
+      - ai-council-network
+
+  nginx:
+    image: nginx:alpine
+    container_name: nginx-proxy
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      ollama:
+        condition: service_healthy
+    networks:
+      - ai-council-network
+
+networks:
+  ai-council-network:
+    driver: bridge
+
+volumes:
+  ollama_data:
