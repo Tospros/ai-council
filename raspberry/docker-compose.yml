@@ -65,7 +65,6 @@ services:
     depends_on:
       - frontend
       - backend
-      - backend
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
