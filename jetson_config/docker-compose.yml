@@ -21,7 +21,7 @@ services:
     networks:
       - ai-council-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      test: ["CMD-SHELL", "ollama list || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -32,7 +32,7 @@ services:
     container_name: ollama-setup
     depends_on:
       ollama:
-        condition: service_healthy
+        condition: service_started
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
