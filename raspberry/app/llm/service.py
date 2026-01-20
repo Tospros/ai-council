@@ -89,19 +89,19 @@ class LLMService:
         Returns:
             Dictionary mapping model keys to their responses
         """
-        tasks = [
-            self.query_model(model_key, prompt, system_prompt)
-            for model_key in self._models.keys()
-        ]
-        
-        responses = await asyncio.gather(*tasks, return_exceptions=True)
-        
+        # Temporarily: Only query llama (tinyllama), return dummy responses for others
         result = {}
-        for model_key, response in zip(self._models.keys(), responses):
-            if isinstance(response, Exception):
-                result[model_key] = f"Błąd: {str(response)}"
-            else:
-                result[model_key] = response
+        
+        # Query only llama model
+        try:
+            llama_response = await self.query_model("llama", prompt, system_prompt)
+            result["llama"] = llama_response
+        except Exception as e:
+            result["llama"] = f"Błąd: {str(e)}"
+        
+        # Dummy responses for other models
+        result["mistral"] = f"[DUMMY] This is a placeholder response from mistral. Real model disabled. Prompt: {prompt[:50]}..."
+        result["gemma"] = f"[DUMMY] This is a placeholder response from gemma. Real model disabled. Prompt: {prompt[:50]}..."
         
         return result
     
