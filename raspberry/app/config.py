@@ -28,7 +28,8 @@ class Settings(BaseSettings):
     attacker_model_3: str = "gemma3:1b"
 
     # Target model name (model to be "jailbroken")
-    target_model_name: str = "mistral:7b"
+    # Using qwen2.5:3b instead of mistral:7b to fit in Jetson GPU memory
+    target_model_name: str = "qwen2.5:3b"
 
     # Timeout for LLM requests (in seconds)
     llm_timeout: int = 300
