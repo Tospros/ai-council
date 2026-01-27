@@ -32,11 +32,13 @@ services:
     command:
       - |
         echo "Waiting for Ollama to be ready..."
-        sleep 10
-        echo "Pulling models..."
+        sleep 15
+        echo "Pulling attacker models (small models for Jetson)..."
         curl -X POST http://ollama:11434/api/pull -d '{"name": "llama3.2:1b"}'
-        curl -X POST http://ollama:11434/api/pull -d '{"name": "mistral:7b"}'
-        curl -X POST http://ollama:11434/api/pull -d '{"name": "gemma:2b"}'
+        curl -X POST http://ollama:11434/api/pull -d '{"name": "qwen2.5:0.5b"}'
+        curl -X POST http://ollama:11434/api/pull -d '{"name": "gemma2:2b"}'
+        echo "Pulling target model..."
+        curl -X POST http://ollama:11434/api/pull -d '{"name": "qwen2.5:1.5b"}'
         echo "Models pulled successfully!"
     networks:
       - ai-council-network
