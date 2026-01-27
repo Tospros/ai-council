@@ -208,42 +208,104 @@ async function handleSubmit(event) {
         return;
     }
 
-    setStatus("Running injection test...", "info");
+    setStatus("Starting injection test...", "info");
     setRatingsStatus("", "");
     setBusy(true);
 
     state.sessionId = null;
     state.prompt = prompt;
-    state.injectionAttempts = null;
-    state.targetResponses = null;
+    state.injectionAttempts = {};
+    state.targetResponses = {};
     initGrades();
     elements.callId.textContent = "";
+    elements.results.classList.remove("hidden");
+    renderInjectionAttempts({});
+    renderTargetResponses({});
 
     const base = getApiBaseUrl();
     const promptUrl = buildUrl(base, "/api/prompt-all-models");
 
     try {
-        const data = await postJson(promptUrl, { prompt }, 300000);
-        if (!data || typeof data !== "object") throw new Error("Invalid response");
+        const response = await fetch(promptUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ prompt })
+        });
 
-        // Extract session_id from response
-        if (data.session_id) {
-            state.sessionId = data.session_id;
-            elements.callId.textContent = `session: ${state.sessionId.substring(0, 8)}...`;
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
         }
 
-        state.injectionAttempts = data.injection_attempts || {};
-        state.targetResponses = data.target_responses || {};
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let attackerCount = 0;
+        let targetCount = 0;
 
-        elements.results.classList.remove("hidden");
-        renderInjectionAttempts(state.injectionAttempts);
-        renderTargetResponses(state.targetResponses);
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() || "";
+
+            let eventType = null;
+            for (const line of lines) {
+                if (line.startsWith("event: ")) {
+                    eventType = line.substring(7).trim();
+                } else if (line.startsWith("data: ") && eventType) {
+                    try {
+                        const data = JSON.parse(line.substring(6));
+                        handleSSEEvent(eventType, data, { attackerCount, targetCount });
+                        if (eventType === "attacker") attackerCount++;
+                        if (eventType === "target") targetCount++;
+                    } catch (e) {
+                        console.warn("Failed to parse SSE data:", e);
+                    }
+                    eventType = null;
+                }
+            }
+        }
+
         setStatus("Done", "success");
     } catch (e) {
         setStatus(String(e && e.message ? e.message : e), "error");
     } finally {
         updateSubmitRatingsEnabled();
         setBusy(false);
+    }
+}
+
+function handleSSEEvent(eventType, data, counts) {
+    switch (eventType) {
+        case "session":
+            state.sessionId = data.session_id;
+            elements.callId.textContent = `session: ${state.sessionId.substring(0, 8)}...`;
+            break;
+
+        case "attacker":
+            state.injectionAttempts[data.model] = data.response;
+            renderInjectionAttempts(state.injectionAttempts);
+            setStatus(`Generating injection attempts... (${counts.attackerCount + 1}/${ATTACKER_MODELS.length})`, "info");
+            break;
+
+        case "target":
+            state.targetResponses[data.model] = data.response;
+            renderTargetResponses(state.targetResponses);
+            setStatus(`Getting target responses... (${counts.targetCount + 1}/${ATTACKER_MODELS.length})`, "info");
+            break;
+
+        case "done":
+            state.injectionAttempts = data.injection_attempts;
+            state.targetResponses = data.target_responses;
+            renderInjectionAttempts(state.injectionAttempts);
+            renderTargetResponses(state.targetResponses);
+            break;
+
+        case "error":
+            setStatus(`Error: ${data.message}`, "error");
+            break;
     }
 }
 

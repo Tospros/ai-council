@@ -1,6 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 import uuid
+import json
+import asyncio
 
 from app.api.schemas import (
     PromptRequest,
@@ -56,31 +59,78 @@ async def get_models(
     )
 
 
-@router.post("/api/prompt-all-models", response_model=PromptResponse)
+@router.post("/api/prompt-all-models")
 async def prompt_all_models(
     request: PromptRequest,
     llm_service: LLMService = Depends(get_llm_service)
 ):
     """
-    Run the injection testing workflow:
-    1. Send prompt to all attacker models to generate injection attempts
-    2. Send each injection attempt to the target model
-    3. Return both injection attempts and target responses
+    Run the injection testing workflow with Server-Sent Events (SSE).
+    Streams results as each model completes to prevent timeouts.
+
+    Events:
+    - session: {session_id}
+    - attacker: {model, response}
+    - target: {model, response}
+    - done: {injection_attempts, target_responses}
+    - error: {message}
     """
-    try:
-        session_id = str(uuid.uuid4())
+    session_id = str(uuid.uuid4())
 
-        # Use the injection graph for the workflow
-        injection_graph = create_injection_graph(llm_service)
-        result = await injection_graph.run(prompt=request.prompt)
+    async def event_generator():
+        try:
+            # Send session ID first
+            yield f"event: session\ndata: {json.dumps({'session_id': session_id})}\n\n"
 
-        return PromptResponse(
-            session_id=session_id,
-            injection_attempts=result["injection_attempts"],
-            target_responses=result["target_responses"]
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error running injection workflow: {str(e)}")
+            injection_attempts = {}
+            target_responses = {}
+            attacker_keys = llm_service.available_attacker_models
+
+            # Phase 1: Query all attackers in parallel, stream as each completes
+            attacker_tasks = {
+                key: asyncio.create_task(llm_service.query_attacker_model(key, request.prompt))
+                for key in attacker_keys
+            }
+
+            for key in attacker_keys:
+                try:
+                    result = await attacker_tasks[key]
+                    injection_attempts[key] = result
+                    yield f"event: attacker\ndata: {json.dumps({'model': key, 'response': result})}\n\n"
+                except Exception as e:
+                    injection_attempts[key] = f"Error: {str(e)}"
+                    yield f"event: attacker\ndata: {json.dumps({'model': key, 'response': f'Error: {str(e)}'})}\n\n"
+
+            # Phase 2: Query target with each injection attempt, stream as each completes
+            target_tasks = {
+                key: asyncio.create_task(llm_service.query_target_model(injection_attempts[key]))
+                for key in attacker_keys
+            }
+
+            for key in attacker_keys:
+                try:
+                    result = await target_tasks[key]
+                    target_responses[key] = result
+                    yield f"event: target\ndata: {json.dumps({'model': key, 'response': result})}\n\n"
+                except Exception as e:
+                    target_responses[key] = f"Error: {str(e)}"
+                    yield f"event: target\ndata: {json.dumps({'model': key, 'response': f'Error: {str(e)}'})}\n\n"
+
+            # Send final complete response
+            yield f"event: done\ndata: {json.dumps({'injection_attempts': injection_attempts, 'target_responses': target_responses})}\n\n"
+
+        except Exception as e:
+            yield f"event: error\ndata: {json.dumps({'message': str(e)})}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"  # Disable nginx buffering
+        }
+    )
 
 
 @router.post("/api/answers", response_model=RatingResponse)
