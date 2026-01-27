@@ -21,34 +21,6 @@ services:
     networks:
       - ai-council-network
 
-  ollama-setup:
-    image: ollama/ollama:latest
-    container_name: ollama-setup
-    depends_on:
-      ollama:
-        condition: service_started
-    restart: "no"
-    volumes:
-      - ollama_data:/root/.ollama
-    environment:
-      - OLLAMA_HOST=ollama:11434
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        echo "Waiting for Ollama to be ready..."
-        sleep 15
-        echo "Pulling attacker models..."
-        ollama pull llama3.2:1b
-        ollama pull qwen2:0.5b
-        ollama pull gemma2:2b
-        echo "Pulling target model..."
-        ollama pull qwen2:1.5b
-        echo "Listing available models..."
-        ollama list
-        echo "Models pulled successfully!"
-    networks:
-      - ai-council-network
-
   nginx:
     image: nginx:alpine
     container_name: nginx-proxy

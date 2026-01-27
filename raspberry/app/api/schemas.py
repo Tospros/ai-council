@@ -18,7 +18,6 @@ class PromptResponse(BaseModel):
 class GradeItem(BaseModel):
     """Individual grades for target responses (keyed by attacker name)."""
     llama: int = Field(..., ge=1, le=5, description="Rating for target's response to llama's attempt (1-5)")
-    qwen: int = Field(..., ge=1, le=5, description="Rating for target's response to qwen's attempt (1-5)")
     gemma: int = Field(..., ge=1, le=5, description="Rating for target's response to gemma's attempt (1-5)")
 
 

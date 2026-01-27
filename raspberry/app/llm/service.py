@@ -22,8 +22,7 @@ class LLMService:
         # Initialize attacker models
         attacker_configs = [
             ("llama", self.settings.attacker_model_1),
-            ("qwen", self.settings.attacker_model_2),
-            ("gemma", self.settings.attacker_model_3),
+            ("gemma", self.settings.attacker_model_2),
         ]
 
         for name, model_name in attacker_configs:
