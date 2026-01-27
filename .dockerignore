@@ -1,7 +1,6 @@
 # Git
 .git
 .gitignore
-.gitattributes
 
 # Python
 __pycache__
@@ -9,79 +8,37 @@ __pycache__
 *$py.class
 *.so
 .Python
-env/
 venv/
-ENV/
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-.pytest_cache/
-.mypy_cache/
-.coverage
-htmlcov/
+.venv/
+env/
+.env
+
+# Database (will be created in container)
+*.db
+*.sqlite3
 
 # IDE
-.vscode/
 .idea/
-*.swp
-*.swo
-*~
-.DS_Store
-
-# Environment
-.env.local
-.env.development
-.env.test
-*.local
-
-# Documentation
-*.md
-README*
-docs/
-LICENSE
-
-# Tests
-tests/
-test_*.py
-*_test.py
-
-# CI/CD
-.github/
-.gitlab-ci.yml
-.travis.yml
-Jenkinsfile
+.vscode/
 
 # Docker
+Dockerfile
 docker-compose*.yml
-Dockerfile*
 .dockerignore
+
+# Docs
+*.md
+!requirements.txt
+
+# Tests
+test_*.py
+
+# OS
+.DS_Store
+Thumbs.db
 
 # Logs
 *.log
-logs/
 
-# Database
-*.db
-*.sqlite
-*.sqlite3
-
-# Poetry
-poetry.lock
-
-# Temporary files
-tmp/
-temp/
-*.tmp
+# Data directory
+data/

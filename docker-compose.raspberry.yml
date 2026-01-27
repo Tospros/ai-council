@@ -1,0 +1,29 @@
+version: '3.8'
+
+# Raspberry Pi setup - web app only, connects to external Ollama on Jetson
+services:
+  web:
+    build: .
+    container_name: llm_redteam_web
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - sqlite_data:/app/db
+    environment:
+      - DJANGO_DEBUG=false
+      - DEV_MODE=true
+      - OLLAMA_HOST=${JETSON_IP:-192.168.1.50}
+      - OLLAMA_PORT=11434
+      - DB_PATH=/app/db/llm_redteam.db
+    networks:
+      - llm_network
+    restart: unless-stopped
+    # No depends_on ollama - it's external
+
+networks:
+  llm_network:
+    driver: bridge
+
+volumes:
+  sqlite_data:

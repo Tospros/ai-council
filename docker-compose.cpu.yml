@@ -1,0 +1,71 @@
+version: '3.8'
+
+# CPU-only version (no NVIDIA GPU required)
+services:
+  # Django Frontend Application
+  web:
+    build: .
+    container_name: llm_redteam_web
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - sqlite_data:/app/db
+    environment:
+      - DJANGO_DEBUG=true
+      - DEV_MODE=true
+      - OLLAMA_HOST=ollama
+      - OLLAMA_PORT=11434
+      - DB_PATH=/app/db/llm_redteam.db
+    depends_on:
+      - ollama
+    networks:
+      - llm_network
+    restart: unless-stopped
+
+  # Ollama Server (CPU mode)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: llm_redteam_ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    networks:
+      - llm_network
+    restart: unless-stopped
+
+  # Model initializer
+  ollama-init:
+    image: ollama/ollama:latest
+    container_name: llm_redteam_ollama_init
+    depends_on:
+      - ollama
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=ollama
+    networks:
+      - llm_network
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "Waiting for Ollama to be ready..."
+        sleep 15
+        echo "Pulling smollm:135m (~100MB)..."
+        ollama pull smollm:135m
+        echo "Pulling smollm:360m (~250MB)..."
+        ollama pull smollm:360m
+        echo "Pulling tinyllama (~600MB)..."
+        ollama pull tinyllama
+        echo "All models pulled successfully! Total: ~950MB"
+
+networks:
+  llm_network:
+    driver: bridge
+
+volumes:
+  ollama_data:
+  sqlite_data:
