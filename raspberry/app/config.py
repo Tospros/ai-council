@@ -23,13 +23,13 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://ollama:11434"
 
     # Attacker model names (generate injection attempts)
-    # Using small models available on Jetson
+    # Using single model to avoid GPU memory issues on Jetson
     attacker_model_1: str = "llama3.2:1b"
-    attacker_model_2: str = "gemma:2b"
+    attacker_model_2: str = "llama3.2:1b"
 
     # Target model name (model to be "jailbroken")
-    # Using gemma:2b as target (fits in Jetson GPU memory)
-    target_model_name: str = "gemma:2b"
+    # Using same model to avoid model switching (Jetson memory limitation)
+    target_model_name: str = "llama3.2:1b"
 
     # Timeout for LLM requests (in seconds)
     llm_timeout: int = 300
