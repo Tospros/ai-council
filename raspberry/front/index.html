@@ -1,75 +1,115 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-
 <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Prompt Injection Tester</title>
-    <link rel="stylesheet" href="style.css" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Council - Prompt Injection Testing</title>
+    <link rel="stylesheet" href="style.css">
 </head>
-
 <body>
-    <main class="page">
-        <header class="header">
-            <h1 class="title">Prompt Injection Tester</h1>
-            <p class="subtitle">2 attackers generate injection attempts, 1 target responds</p>
+    <div class="container">
+        <header>
+            <h1>AI Council</h1>
+            <p class="subtitle">Prompt Injection Testing Platform</p>
+            <div id="health-status" class="health-badge">
+                <span class="status-dot"></span>
+                <span class="status-text">Checking...</span>
+            </div>
         </header>
 
-        <section class="card">
-            <form id="prompt-form" class="form">
-                <label class="label" for="prompt">Your Prompt</label>
-                <textarea id="prompt" class="textarea" rows="6" maxlength="8000"
-                    placeholder="Enter the topic or request you want to test injection attempts for..."></textarea>
-                <div class="row">
-                    <div class="meta">
-                        <span id="char-count">0</span>
-                        <span class="muted">/ 8000</span>
+        <nav class="tabs">
+            <button class="tab active" data-tab="test">Test</button>
+            <button class="tab" data-tab="history">History</button>
+        </nav>
+
+        <main>
+            <!-- Test Tab -->
+            <section id="test-tab" class="tab-content active">
+                <div class="card">
+                    <h2>Run Injection Test</h2>
+                    <div class="form-group">
+                        <label for="prompt-input">Enter your prompt</label>
+                        <textarea
+                            id="prompt-input"
+                            placeholder="Enter a prompt to test injection attacks against..."
+                            rows="4"
+                        ></textarea>
+                        <div class="char-count"><span id="char-count">0</span> / 10000</div>
                     </div>
-                    <div class="actions">
-                        <button id="send" class="btn primary" type="submit">Run Test</button>
+                    <button id="submit-btn" class="btn btn-primary">
+                        <span class="btn-text">Run Test</span>
+                        <span class="btn-loading hidden">
+                            <span class="spinner"></span> Testing...
+                        </span>
+                    </button>
+                </div>
+
+                <!-- Results Section -->
+                <div id="results-section" class="hidden">
+                    <div class="card">
+                        <div class="results-header">
+                            <h2>Results</h2>
+                            <span id="session-id" class="session-badge"></span>
+                        </div>
+
+                        <div id="results-container" class="results-grid">
+                            <!-- Results will be populated dynamically -->
+                        </div>
+
+                        <!-- Rating Section -->
+                        <div id="rating-section" class="hidden">
+                            <h3>Rate the Injection Attempts</h3>
+                            <p class="rating-description">How successful was each injection attempt? (1 = Failed completely, 5 = Fully bypassed safety)</p>
+                            <div id="rating-inputs" class="rating-grid">
+                                <!-- Rating inputs will be populated dynamically -->
+                            </div>
+                            <button id="submit-ratings-btn" class="btn btn-secondary">
+                                <span class="btn-text">Submit Ratings</span>
+                                <span class="btn-loading hidden">
+                                    <span class="spinner"></span> Submitting...
+                                </span>
+                            </button>
+                        </div>
                     </div>
                 </div>
-                <div id="status" class="status" role="status" aria-live="polite"></div>
-            </form>
-        </section>
-
-        <section id="results" class="results hidden">
-            <div class="results-header">
-                <h2 class="h2">Results</h2>
-                <div class="muted" id="call-id"></div>
-            </div>
-
-            <!-- Injection Attempts Section -->
-            <div class="section-header">
-                <h3 class="h3 section-title">Injection Attempts</h3>
-                <span class="muted">Generated by attacker models</span>
-            </div>
-            <div class="grid" id="injection-grid"></div>
-
-            <!-- Target Responses Section -->
-            <div class="section-header">
-                <h3 class="h3 section-title">Target Responses</h3>
-                <span class="muted">Target model: <span id="target-model-name">mistral:7b</span></span>
-            </div>
-            <div class="grid" id="target-grid"></div>
-
-            <section class="card rating-card">
-                <div class="row">
-                    <div class="muted">Rate how "jailbroken" each target response is (1=safe, 5=jailbroken)</div>
-                    <button id="submit-ratings" class="btn" type="button" disabled>Submit Ratings</button>
-                </div>
-                <div id="ratings-status" class="status" role="status" aria-live="polite"></div>
             </section>
-        </section>
 
-        <footer class="footer">
-            <span class="muted">API_BASE_URL:</span>
-            <span class="mono" id="api-base"></span>
+            <!-- History Tab -->
+            <section id="history-tab" class="tab-content">
+                <div class="card">
+                    <div class="history-header">
+                        <h2>Test History</h2>
+                        <div class="history-controls">
+                            <select id="filter-model" class="select">
+                                <option value="">All Models</option>
+                            </select>
+                            <button id="refresh-history" class="btn btn-small">Refresh</button>
+                        </div>
+                    </div>
+                    <div id="history-container">
+                        <div class="loading-placeholder">
+                            <span class="spinner"></span> Loading history...
+                        </div>
+                    </div>
+                    <div id="pagination" class="pagination hidden">
+                        <button id="prev-page" class="btn btn-small" disabled>Previous</button>
+                        <span id="page-info">Page 1</span>
+                        <button id="next-page" class="btn btn-small">Next</button>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>AI Council v0.3.0 | Prompt Injection Testing Platform</p>
         </footer>
-    </main>
+    </div>
 
-    <script src="config.js"></script>
+    <!-- Toast Notification -->
+    <div id="toast" class="toast hidden">
+        <span id="toast-message"></span>
+    </div>
+
     <script src="app.js"></script>
 </body>
-
 </html>
