@@ -1,6 +1,6 @@
 services:
   frontend:
-    build: 
+    build:
       context: .
       dockerfile: front/Dockerfile
     ports:
@@ -9,16 +9,17 @@ services:
       - API_BASE_URL=${API_BASE_URL:-/api}
     networks:
       - ai-council-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   backend:
-    build: 
+    build:
       context: .
       dockerfile: docker/Dockerfile
-    ports:
-      - "8000:8000"
+    network_mode: host
     environment:
-      - DATABASE_URL=postgresql+asyncpg://council_user:pass123@postgres:5432/ai_council
-      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      - DATABASE_URL=postgresql+asyncpg://council_user:pass123@localhost:5432/ai_council
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://192.168.1.20:11434}
       - MODEL_NAME_1=${MODEL_NAME_1:-llama3.2:1b}
       - MODEL_NAME_2=${MODEL_NAME_2:-mistral:7b}
       - MODEL_NAME_3=${MODEL_NAME_3:-gemma:2b}
@@ -26,10 +27,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    networks:
-      - ai-council-network
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     
   postgres:
     container_name: postgres
