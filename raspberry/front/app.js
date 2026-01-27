@@ -1,380 +1,385 @@
-let ATTACKER_MODELS = ["llama", "gemma"];
-let TARGET_MODEL = "gemma:2b";
+(function() {
+    "use strict";
 
-const elements = {
-    form: document.getElementById("prompt-form"),
-    prompt: document.getElementById("prompt"),
-    send: document.getElementById("send"),
-    status: document.getElementById("status"),
-    results: document.getElementById("results"),
-    injectionGrid: document.getElementById("injection-grid"),
-    targetGrid: document.getElementById("target-grid"),
-    charCount: document.getElementById("char-count"),
-    callId: document.getElementById("call-id"),
-    apiBase: document.getElementById("api-base"),
-    submitRatings: document.getElementById("submit-ratings"),
-    ratingsStatus: document.getElementById("ratings-status"),
-    targetModelName: document.getElementById("target-model-name")
-};
+    // State
+    const state = {
+        sessionId: null,
+        prompt: null,
+        attackerModels: [],
+        targetModel: "",
+        injectionAttempts: {},
+        targetResponses: {},
+        grades: {},
+        loading: false
+    };
 
-const state = {
-    sessionId: null,
-    prompt: null,
-    injectionAttempts: null,
-    targetResponses: null,
-    grades: {},
-    busy: false
-};
+    // DOM elements
+    const $ = (sel) => document.querySelector(sel);
+    const $$ = (sel) => document.querySelectorAll(sel);
 
-function initGrades() {
-    state.grades = {};
-    ATTACKER_MODELS.forEach(m => state.grades[m] = null);
-}
+    const dom = {
+        form: $("#prompt-form"),
+        prompt: $("#prompt"),
+        send: $("#send"),
+        status: $("#status"),
+        results: $("#results"),
+        injectionGrid: $("#injection-grid"),
+        targetGrid: $("#target-grid"),
+        charCount: $("#char-count"),
+        callId: $("#call-id"),
+        apiBase: $("#api-base"),
+        submitRatings: $("#submit-ratings"),
+        ratingsStatus: $("#ratings-status"),
+        targetModelName: $("#target-model-name")
+    };
 
-function getApiBaseUrl() {
-    const fromConfig = window.APP_CONFIG && typeof window.APP_CONFIG.API_BASE_URL === "string" ? window.APP_CONFIG.API_BASE_URL.trim() : "";
-    return fromConfig || "/api";
-}
-
-function buildUrl(base, path) {
-    const baseStr = (base || "").trim();
-    const pathStr = path.startsWith("/") ? path : `/${path}`;
-    if (!baseStr) return pathStr;
-    if (/^https?:\/\//i.test(baseStr)) return baseStr.replace(/\/$/, "") + pathStr;
-    if (baseStr.startsWith("/")) {
-        const prefix = baseStr.replace(/\/$/, "");
-        const lowerPrefix = prefix.toLowerCase();
-        const lowerPath = pathStr.toLowerCase();
-        if (lowerPath === lowerPrefix || lowerPath.startsWith(lowerPrefix + "/")) return pathStr;
-        return prefix + pathStr;
+    // Config
+    function getApiBase() {
+        if (window.APP_CONFIG && window.APP_CONFIG.API_BASE_URL) {
+            return window.APP_CONFIG.API_BASE_URL.replace(/\/$/, "");
+        }
+        return "";
     }
-    return baseStr.replace(/\/$/, "") + pathStr;
-}
 
-function setStatus(text, type) {
-    elements.status.textContent = text || "";
-    elements.status.dataset.type = type || "";
-}
+    // UI helpers
+    function setStatus(msg, type) {
+        dom.status.textContent = msg;
+        dom.status.dataset.type = type || "";
+    }
 
-function setRatingsStatus(text, type) {
-    elements.ratingsStatus.textContent = text || "";
-    elements.ratingsStatus.dataset.type = type || "";
-}
+    function setRatingsStatus(msg, type) {
+        dom.ratingsStatus.textContent = msg;
+        dom.ratingsStatus.dataset.type = type || "";
+    }
 
-function setBusy(busy) {
-    state.busy = busy;
-    elements.send.disabled = busy;
-    elements.prompt.disabled = busy;
-}
+    function setLoading(loading) {
+        state.loading = loading;
+        dom.send.disabled = loading;
+        dom.prompt.disabled = loading;
+    }
 
-function escapeText(value) {
-    const div = document.createElement("div");
-    div.textContent = value == null ? "" : String(value);
-    return div.textContent;
-}
+    function updateCharCount() {
+        dom.charCount.textContent = dom.prompt.value.length;
+    }
 
-function updateCharCount() {
-    elements.charCount.textContent = String(elements.prompt.value.length);
-}
+    // Initialize grades for current attacker models
+    function initGrades() {
+        state.grades = {};
+        state.attackerModels.forEach(m => { state.grades[m] = null; });
+    }
 
-function gradesReady() {
-    return ATTACKER_MODELS.length > 0 && ATTACKER_MODELS.every((m) => Number.isInteger(state.grades[m]) && state.grades[m] >= 1 && state.grades[m] <= 5);
-}
+    // Check if all grades are set
+    function allGradesSet() {
+        return state.attackerModels.length > 0 &&
+            state.attackerModels.every(m => state.grades[m] >= 1 && state.grades[m] <= 5);
+    }
 
-function updateSubmitRatingsEnabled() {
-    elements.submitRatings.disabled = !state.sessionId || !state.targetResponses || !gradesReady();
-}
+    function updateSubmitButton() {
+        dom.submitRatings.disabled = !state.sessionId || !allGradesSet();
+    }
 
-function renderInjectionAttempts(attempts) {
-    elements.injectionGrid.textContent = "";
-    ATTACKER_MODELS.forEach((model) => {
-        const card = document.createElement("article");
-        card.className = "card injection-card";
+    // Render injection attempts cards
+    function renderInjectionAttempts() {
+        dom.injectionGrid.innerHTML = "";
+        state.attackerModels.forEach(model => {
+            const response = state.injectionAttempts[model] || "";
+            const card = document.createElement("article");
+            card.className = "card injection-card";
+            card.innerHTML = `
+                <div class="row">
+                    <div class="h3">${escapeHtml(model)}</div>
+                    <span class="badge attacker-badge">ATTACKER</span>
+                </div>
+                <pre class="response">${escapeHtml(response)}</pre>
+            `;
+            dom.injectionGrid.appendChild(card);
+        });
+    }
 
-        const header = document.createElement("div");
-        header.className = "row";
+    // Render target responses cards with rating inputs
+    function renderTargetResponses() {
+        dom.targetGrid.innerHTML = "";
+        state.attackerModels.forEach(model => {
+            const response = state.targetResponses[model] || "";
+            const card = document.createElement("article");
+            card.className = "card target-card";
 
-        const left = document.createElement("div");
-        const h = document.createElement("div");
-        h.className = "h3";
-        h.textContent = model;
-        left.appendChild(h);
+            const ratingHtml = [1, 2, 3, 4, 5].map(i => {
+                const checked = state.grades[model] === i ? "checked" : "";
+                return `
+                    <label class="rate">
+                        <input type="radio" name="rate-${model}" value="${i}" ${checked}>
+                        <span>${i}</span>
+                    </label>
+                `;
+            }).join("");
 
-        const badge = document.createElement("span");
-        badge.className = "badge attacker-badge";
-        badge.textContent = "ATTACKER";
+            card.innerHTML = `
+                <div class="row">
+                    <div class="h3">via ${escapeHtml(model)}</div>
+                    <div class="rating">${ratingHtml}</div>
+                </div>
+                <pre class="response">${escapeHtml(response)}</pre>
+            `;
 
-        header.appendChild(left);
-        header.appendChild(badge);
-
-        const body = document.createElement("pre");
-        body.className = "response";
-        body.textContent = escapeText(attempts && attempts[model]);
-
-        card.appendChild(header);
-        card.appendChild(body);
-        elements.injectionGrid.appendChild(card);
-    });
-}
-
-function renderTargetResponses(responses) {
-    elements.targetGrid.textContent = "";
-    ATTACKER_MODELS.forEach((model) => {
-        const card = document.createElement("article");
-        card.className = "card target-card";
-
-        const header = document.createElement("div");
-        header.className = "row";
-
-        const left = document.createElement("div");
-        const h = document.createElement("div");
-        h.className = "h3";
-        h.textContent = `via ${model}`;
-        left.appendChild(h);
-
-        const rating = document.createElement("div");
-        rating.className = "rating";
-
-        for (let i = 1; i <= 5; i++) {
-            const label = document.createElement("label");
-            label.className = "rate";
-
-            const input = document.createElement("input");
-            input.type = "radio";
-            input.name = `rate-${model}`;
-            input.value = String(i);
-            input.checked = state.grades[model] === i;
-            input.addEventListener("change", () => {
-                state.grades[model] = i;
-                setRatingsStatus("", "");
-                updateSubmitRatingsEnabled();
+            // Add rating change listeners
+            card.querySelectorAll('input[type="radio"]').forEach(input => {
+                input.addEventListener("change", () => {
+                    state.grades[model] = parseInt(input.value, 10);
+                    setRatingsStatus("", "");
+                    updateSubmitButton();
+                });
             });
 
-            const span = document.createElement("span");
-            span.textContent = String(i);
-
-            label.appendChild(input);
-            label.appendChild(span);
-            rating.appendChild(label);
-        }
-
-        header.appendChild(left);
-        header.appendChild(rating);
-
-        const body = document.createElement("pre");
-        body.className = "response";
-        body.textContent = escapeText(responses && responses[model]);
-
-        card.appendChild(header);
-        card.appendChild(body);
-        elements.targetGrid.appendChild(card);
-    });
-}
-
-async function postJson(url, payload, timeoutMs) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
-    try {
-        const res = await fetch(url, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-            signal: controller.signal
+            dom.targetGrid.appendChild(card);
         });
-        const text = await res.text();
-        let json = null;
+    }
+
+    function escapeHtml(str) {
+        if (str == null) return "";
+        const div = document.createElement("div");
+        div.textContent = String(str);
+        return div.innerHTML;
+    }
+
+    // Fetch available models from API
+    async function fetchModels() {
         try {
-            json = text ? JSON.parse(text) : null;
-        } catch {
-            json = null;
+            const res = await fetch(getApiBase() + "/api/models");
+            if (!res.ok) throw new Error("Failed to fetch models");
+            const data = await res.json();
+            if (Array.isArray(data.attacker_models)) {
+                state.attackerModels = data.attacker_models;
+            }
+            if (data.target_model) {
+                state.targetModel = data.target_model;
+                if (dom.targetModelName) {
+                    dom.targetModelName.textContent = data.target_model;
+                }
+            }
+            initGrades();
+        } catch (e) {
+            console.warn("Could not fetch models:", e);
+            // Default fallback
+            state.attackerModels = ["llama", "gemma"];
+            initGrades();
         }
-        if (!res.ok) {
-            const msg = json && (json.detail || json.error || json.message) ? String(json.detail || json.error || json.message) : text || `HTTP ${res.status}`;
-            throw new Error(msg);
-        }
-        return json;
-    } finally {
-        clearTimeout(timeout);
-    }
-}
-
-async function handleSubmit(event) {
-    event.preventDefault();
-    if (state.busy) return;
-
-    const prompt = elements.prompt.value.trim();
-    if (!prompt) {
-        setStatus("Prompt is required", "error");
-        return;
     }
 
-    setStatus("Starting injection test...", "info");
-    setRatingsStatus("", "");
-    setBusy(true);
-
-    state.sessionId = null;
-    state.prompt = prompt;
-    state.injectionAttempts = {};
-    state.targetResponses = {};
-    initGrades();
-    elements.callId.textContent = "";
-    elements.results.classList.remove("hidden");
-    renderInjectionAttempts({});
-    renderTargetResponses({});
-
-    const base = getApiBaseUrl();
-    const promptUrl = buildUrl(base, "/api/prompt-all-models");
-
-    try {
-        const response = await fetch(promptUrl, {
+    // Parse SSE stream manually (more reliable than EventSource for POST)
+    async function streamSSE(url, body, handlers) {
+        const response = await fetch(url, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ prompt })
+            body: JSON.stringify(body)
         });
 
         if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
+            const text = await response.text();
+            throw new Error(text || `HTTP ${response.status}`);
         }
 
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let buffer = "";
-        let attackerCount = 0;
-        let targetCount = 0;
 
         while (true) {
             const { done, value } = await reader.read();
             if (done) break;
 
             buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split("\n");
-            buffer = lines.pop() || "";
 
-            let eventType = null;
-            for (const line of lines) {
-                if (line.startsWith("event: ")) {
-                    eventType = line.substring(7).trim();
-                } else if (line.startsWith("data: ") && eventType) {
-                    try {
-                        const data = JSON.parse(line.substring(6));
-                        handleSSEEvent(eventType, data, { attackerCount, targetCount });
-                        if (eventType === "attacker") attackerCount++;
-                        if (eventType === "target") targetCount++;
-                    } catch (e) {
-                        console.warn("Failed to parse SSE data:", e);
+            // Process complete events (separated by double newline)
+            const events = buffer.split("\n\n");
+            buffer = events.pop(); // Keep incomplete event in buffer
+
+            for (const eventBlock of events) {
+                if (!eventBlock.trim()) continue;
+
+                const lines = eventBlock.split("\n");
+                let eventType = null;
+                let eventData = null;
+
+                for (const line of lines) {
+                    if (line.startsWith("event:")) {
+                        eventType = line.slice(6).trim();
+                    } else if (line.startsWith("data:")) {
+                        eventData = line.slice(5).trim();
                     }
-                    eventType = null;
+                }
+
+                if (eventType && eventData) {
+                    try {
+                        const parsed = JSON.parse(eventData);
+                        if (handlers[eventType]) {
+                            handlers[eventType](parsed);
+                        }
+                    } catch (e) {
+                        console.warn("Failed to parse SSE data:", eventData, e);
+                    }
                 }
             }
         }
 
-        setStatus("Done", "success");
-    } catch (e) {
-        setStatus(String(e && e.message ? e.message : e), "error");
-    } finally {
-        updateSubmitRatingsEnabled();
-        setBusy(false);
-    }
-}
-
-function handleSSEEvent(eventType, data, counts) {
-    switch (eventType) {
-        case "session":
-            state.sessionId = data.session_id;
-            elements.callId.textContent = `session: ${state.sessionId.substring(0, 8)}...`;
-            break;
-
-        case "attacker":
-            state.injectionAttempts[data.model] = data.response;
-            renderInjectionAttempts(state.injectionAttempts);
-            setStatus(`Generating injection attempts... (${counts.attackerCount + 1}/${ATTACKER_MODELS.length})`, "info");
-            break;
-
-        case "target":
-            state.targetResponses[data.model] = data.response;
-            renderTargetResponses(state.targetResponses);
-            setStatus(`Getting target responses... (${counts.targetCount + 1}/${ATTACKER_MODELS.length})`, "info");
-            break;
-
-        case "done":
-            state.injectionAttempts = data.injection_attempts;
-            state.targetResponses = data.target_responses;
-            renderInjectionAttempts(state.injectionAttempts);
-            renderTargetResponses(state.targetResponses);
-            break;
-
-        case "error":
-            setStatus(`Error: ${data.message}`, "error");
-            break;
-    }
-}
-
-async function submitRatings() {
-    if (state.busy) return;
-    if (!state.sessionId || !state.targetResponses) {
-        setRatingsStatus("No completed test to rate", "error");
-        return;
-    }
-    if (!gradesReady()) {
-        setRatingsStatus("Please rate all target responses", "error");
-        return;
-    }
-
-    setRatingsStatus("Submitting...", "info");
-    elements.submitRatings.disabled = true;
-
-    const base = getApiBaseUrl();
-    const ratingUrl = buildUrl(base, "/api/answers");
-
-    try {
-        await postJson(ratingUrl, {
-            id: state.sessionId,
-            prompt: state.prompt,
-            injection_attempts: state.injectionAttempts,
-            target_responses: state.targetResponses,
-            grades: state.grades
-        }, 60000);
-        setRatingsStatus("Ratings saved", "success");
-    } catch (e) {
-        setRatingsStatus(String(e && e.message ? e.message : e), "error");
-    } finally {
-        updateSubmitRatingsEnabled();
-    }
-}
-
-function init() {
-    const base = getApiBaseUrl();
-    elements.apiBase.textContent = base;
-    initGrades();
-    updateCharCount();
-    elements.prompt.addEventListener("input", updateCharCount);
-    elements.form.addEventListener("submit", handleSubmit);
-    elements.submitRatings.addEventListener("click", submitRatings);
-
-    // Fetch available models from backend
-    fetchModels(base);
-}
-
-async function fetchModels(base) {
-    try {
-        const modelsUrl = buildUrl(base, "/api/models");
-        const res = await fetch(modelsUrl);
-        if (res.ok) {
-            const data = await res.json();
-            if (data.attacker_models && Array.isArray(data.attacker_models)) {
-                ATTACKER_MODELS = data.attacker_models;
-                initGrades();
+        // Process any remaining data
+        if (buffer.trim()) {
+            const lines = buffer.split("\n");
+            let eventType = null;
+            let eventData = null;
+            for (const line of lines) {
+                if (line.startsWith("event:")) {
+                    eventType = line.slice(6).trim();
+                } else if (line.startsWith("data:")) {
+                    eventData = line.slice(5).trim();
+                }
             }
-            if (data.target_model) {
-                TARGET_MODEL = data.target_model;
-                if (elements.targetModelName) {
-                    elements.targetModelName.textContent = TARGET_MODEL;
+            if (eventType && eventData) {
+                try {
+                    const parsed = JSON.parse(eventData);
+                    if (handlers[eventType]) {
+                        handlers[eventType](parsed);
+                    }
+                } catch (e) {
+                    console.warn("Failed to parse final SSE data:", e);
                 }
             }
         }
-    } catch (e) {
-        console.warn("Could not fetch models, using defaults:", e);
     }
-}
 
-init();
+    // Main form submission
+    async function handleSubmit(e) {
+        e.preventDefault();
+        if (state.loading) return;
+
+        const prompt = dom.prompt.value.trim();
+        if (!prompt) {
+            setStatus("Please enter a prompt", "error");
+            return;
+        }
+
+        // Reset state
+        state.sessionId = null;
+        state.prompt = prompt;
+        state.injectionAttempts = {};
+        state.targetResponses = {};
+        initGrades();
+
+        // Show results section
+        dom.results.classList.remove("hidden");
+        dom.callId.textContent = "";
+        renderInjectionAttempts();
+        renderTargetResponses();
+
+        setStatus("Connecting...", "info");
+        setRatingsStatus("", "");
+        setLoading(true);
+
+        let attackerCount = 0;
+        let targetCount = 0;
+
+        try {
+            await streamSSE(getApiBase() + "/api/prompt-all-models", { prompt }, {
+                session: (data) => {
+                    state.sessionId = data.session_id;
+                    dom.callId.textContent = `Session: ${data.session_id.slice(0, 8)}...`;
+                    setStatus("Session started", "info");
+                },
+
+                attacker: (data) => {
+                    attackerCount++;
+                    state.injectionAttempts[data.model] = data.response;
+                    renderInjectionAttempts();
+                    setStatus(`Generating injections... (${attackerCount}/${state.attackerModels.length})`, "info");
+                },
+
+                target: (data) => {
+                    targetCount++;
+                    state.targetResponses[data.model] = data.response;
+                    renderTargetResponses();
+                    setStatus(`Getting target responses... (${targetCount}/${state.attackerModels.length})`, "info");
+                },
+
+                done: (data) => {
+                    state.injectionAttempts = data.injection_attempts || state.injectionAttempts;
+                    state.targetResponses = data.target_responses || state.targetResponses;
+                    renderInjectionAttempts();
+                    renderTargetResponses();
+                    setStatus("Complete", "success");
+                },
+
+                error: (data) => {
+                    setStatus(`Error: ${data.message}`, "error");
+                }
+            });
+
+            if (!dom.status.textContent.startsWith("Error")) {
+                setStatus("Complete", "success");
+            }
+        } catch (err) {
+            console.error("Stream error:", err);
+            setStatus(err.message || "Connection failed", "error");
+        } finally {
+            setLoading(false);
+            updateSubmitButton();
+        }
+    }
+
+    // Submit ratings
+    async function handleSubmitRatings() {
+        if (state.loading) return;
+        if (!state.sessionId) {
+            setRatingsStatus("No session to rate", "error");
+            return;
+        }
+        if (!allGradesSet()) {
+            setRatingsStatus("Please rate all responses (1-5)", "error");
+            return;
+        }
+
+        setRatingsStatus("Submitting...", "info");
+        dom.submitRatings.disabled = true;
+
+        try {
+            const res = await fetch(getApiBase() + "/api/answers", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    id: state.sessionId,
+                    prompt: state.prompt,
+                    injection_attempts: state.injectionAttempts,
+                    target_responses: state.targetResponses,
+                    grades: state.grades
+                })
+            });
+
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}));
+                throw new Error(data.detail || data.message || `HTTP ${res.status}`);
+            }
+
+            setRatingsStatus("Ratings saved!", "success");
+        } catch (err) {
+            console.error("Rating error:", err);
+            setRatingsStatus(err.message || "Failed to save ratings", "error");
+        } finally {
+            updateSubmitButton();
+        }
+    }
+
+    // Initialize
+    function init() {
+        dom.apiBase.textContent = getApiBase() || "(same origin)";
+        dom.prompt.addEventListener("input", updateCharCount);
+        dom.form.addEventListener("submit", handleSubmit);
+        dom.submitRatings.addEventListener("click", handleSubmitRatings);
+        updateCharCount();
+        fetchModels();
+    }
+
+    // Start
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", init);
+    } else {
+        init();
+    }
+})();
