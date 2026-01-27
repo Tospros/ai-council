@@ -25,12 +25,12 @@ class Settings(BaseSettings):
     # Attacker model names (generate injection attempts)
     # Using small models that fit in Jetson GPU memory
     attacker_model_1: str = "llama3.2:1b"
-    attacker_model_2: str = "qwen2.5:0.5b"
+    attacker_model_2: str = "qwen2:0.5b"
     attacker_model_3: str = "gemma2:2b"
 
     # Target model name (model to be "jailbroken")
-    # Using qwen2.5:1.5b to fit in Jetson GPU memory
-    target_model_name: str = "qwen2.5:1.5b"
+    # Using qwen2:1.5b to fit in Jetson GPU memory
+    target_model_name: str = "qwen2:1.5b"
 
     # Timeout for LLM requests (in seconds)
     llm_timeout: int = 300
