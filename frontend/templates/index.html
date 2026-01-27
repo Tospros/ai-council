@@ -1,0 +1,117 @@
+{% extends 'base.html' %}
+
+{% block title %}LLM Red Team - Home{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <!-- Prompt Submission Form -->
+        <div class="card mb-4 glow-effect">
+            <div class="card-header">
+                <h5 class="mb-0">&#128274; Submit Prompt for Jailbreak Testing</h5>
+            </div>
+            <div class="card-body">
+                <form action="{% url 'submit_prompt' %}" method="post">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="prompt" class="form-label">&#9889; Enter your prompt:</label>
+                        <textarea
+                            class="form-control"
+                            id="prompt"
+                            name="prompt"
+                            rows="4"
+                            placeholder="Enter a prompt to test against jailbreak techniques..."
+                            required
+                        ></textarea>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">
+                            &#128640; Run Jailbreak Test
+                        </button>
+                    </div>
+                </form>
+                <div class="mt-4 text-center">
+                    <p class="mb-2" style="color: var(--neon-cyan);">Your prompt will be processed by 3 attacker models:</p>
+                    <div>
+                        <span class="badge model-badge smollm-135">SmolLM:135M</span>
+                        <span class="badge model-badge smollm-360">SmolLM:360M</span>
+                        <span class="badge model-badge tinyllama">TinyLlama</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Model Statistics -->
+        {% if stats %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">&#128202; Model Performance</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    {% for stat in stats %}
+                    <div class="col-md-4">
+                        <div class="text-center p-3" style="border: 1px solid var(--card-border); border-radius: 10px; margin-bottom: 10px;">
+                            <h6 style="color: var(--neon-cyan);">{{ stat.model_name }}</h6>
+                            <div class="display-4">
+                                {% if stat.average_rating %}
+                                    {{ stat.average_rating|floatformat:1 }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </div>
+                            <small class="text-muted">
+                                {{ stat.total_ratings }} ratings / {{ stat.total_attempts }} attempts
+                            </small>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Recent Sessions -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">&#128337; Recent Test Sessions</h5>
+            </div>
+            <div class="card-body">
+                {% if sessions %}
+                <div class="list-group list-group-flush">
+                    {% for session in sessions %}
+                    <a href="{% url 'session_detail' session.id %}"
+                       class="list-group-item list-group-item-action">
+                        <div class="d-flex w-100 justify-content-between align-items-center">
+                            <p class="mb-1 text-truncate" style="max-width: 80%; color: #ffffff;">
+                                {{ session.original_prompt|truncatechars:100 }}
+                            </p>
+                            <small style="color: var(--neon-pink);">
+                                {{ session.created_at|date:"M d, H:i" }}
+                            </small>
+                        </div>
+                    </a>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <p style="color: var(--neon-cyan); font-size: 1.2rem;">
+                        &#128640; No test sessions yet. Submit a prompt to get started!
+                    </p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.querySelector('form').addEventListener('submit', function() {
+        const btn = document.getElementById('submitBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
+    });
+</script>
+{% endblock %}

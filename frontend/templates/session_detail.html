@@ -1,0 +1,187 @@
+{% extends 'base.html' %}
+
+{% block title %}Session #{{ session.id }} - LLM Red Team{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-10 mx-auto">
+        <!-- Session Header -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">&#128270; Session #{{ session.id }}</h5>
+                <small style="color: var(--neon-pink);">{{ session.created_at|date:"F d, Y H:i" }}</small>
+            </div>
+            <div class="card-body">
+                <h6 style="color: var(--neon-cyan); text-transform: uppercase; letter-spacing: 1px;">Original Prompt:</h6>
+                <div class="prompt-box">
+                    <span style="color: #ffffff;">{{ session.original_prompt }}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Jailbreak Attempts -->
+        <h4 class="mb-3" style="color: var(--neon-pink);">&#9889; Jailbreak Attempts</h4>
+
+        {% for attempt in attempts %}
+        <div class="card mb-4" id="attempt-{{ attempt.id }}">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <div>
+                    <span class="badge model-badge
+                        {% if '135m' in attempt.attacker_model %}smollm-135
+                        {% elif '360m' in attempt.attacker_model %}smollm-360
+                        {% else %}tinyllama{% endif %}">
+                        {{ attempt.attacker_model }}
+                    </span>
+                    <span class="ms-2" style="color: rgba(255,255,255,0.7);">Attacker Model</span>
+                </div>
+                <div class="rating-display">
+                    {% if attempt.user_rating %}
+                    <span class="badge" style="background: linear-gradient(135deg, var(--neon-yellow) 0%, var(--neon-orange) 100%); color: #000; padding: 8px 15px;">
+                        &#11088; Rating: {{ attempt.user_rating|floatformat:1 }}/5
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="card-body">
+                <!-- Jailbreak Prompt -->
+                <h6 style="color: var(--neon-pink);">&#128274; Generated Jailbreak Prompt:</h6>
+                <div class="prompt-box mb-3">
+                    <pre class="mb-0" style="color: #ffffff;">{{ attempt.attacker_prompt }}</pre>
+                </div>
+
+                <!-- Target Response -->
+                <h6 style="color: var(--neon-green);">&#129302; Target Model Response ({{ attempt.target_model }}):</h6>
+                <div class="response-box">
+                    <pre class="mb-0" style="color: #ffffff;">{{ attempt.target_response }}</pre>
+                </div>
+
+                <!-- Rating Section -->
+                <div class="mt-4 pt-3" style="border-top: 1px solid var(--card-border);">
+                    <h6 style="color: var(--neon-cyan);">&#11088; Rate this jailbreak attempt:</h6>
+                    <div class="rating-widget" data-attempt-id="{{ attempt.id }}">
+                        <div class="rating-stars mb-2">
+                            {% for i in "12345" %}
+                            <span class="star {% if attempt.user_rating >= forloop.counter %}active{% endif %}"
+                                  data-value="{{ forloop.counter }}">&#9733;</span>
+                            {% endfor %}
+                        </div>
+                        <div class="input-group mb-2">
+                            <input type="text"
+                                   class="form-control rating-comment"
+                                   placeholder="Add a comment (optional)"
+                                   value="{{ attempt.rating_comment|default:'' }}">
+                            <button class="btn btn-primary submit-rating" type="button">
+                                Submit Rating
+                            </button>
+                        </div>
+                        <div class="rating-feedback"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="alert alert-info">
+            &#128640; No jailbreak attempts found for this session.
+        </div>
+        {% endfor %}
+
+        <!-- Back Button -->
+        <div class="mt-4">
+            <a href="{% url 'index' %}" class="btn btn-secondary">
+                &#8592; Back to Home
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.rating-widget').forEach(function(widget) {
+        const attemptId = widget.dataset.attemptId;
+        const stars = widget.querySelectorAll('.star');
+        let selectedRating = 0;
+
+        stars.forEach(function(star) {
+            star.addEventListener('click', function() {
+                selectedRating = parseInt(this.dataset.value);
+                updateStars(stars, selectedRating);
+            });
+
+            star.addEventListener('mouseover', function() {
+                const hoverValue = parseInt(this.dataset.value);
+                updateStars(stars, hoverValue);
+            });
+
+            star.addEventListener('mouseout', function() {
+                updateStars(stars, selectedRating);
+            });
+        });
+
+        widget.querySelector('.submit-rating').addEventListener('click', function() {
+            if (selectedRating === 0) {
+                showFeedback(widget, 'Please select a rating', 'danger');
+                return;
+            }
+
+            const comment = widget.querySelector('.rating-comment').value;
+            submitRating(attemptId, selectedRating, comment, widget);
+        });
+    });
+
+    function updateStars(stars, value) {
+        stars.forEach(function(star, index) {
+            if (index < value) {
+                star.classList.add('active');
+            } else {
+                star.classList.remove('active');
+            }
+        });
+    }
+
+    function submitRating(attemptId, rating, comment, widget) {
+        const btn = widget.querySelector('.submit-rating');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+        fetch(`/rate/${attemptId}/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                rating: rating,
+                comment: comment
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showFeedback(widget, 'Rating submitted successfully!', 'success');
+                const card = widget.closest('.card');
+                const ratingDisplay = card.querySelector('.rating-display');
+                ratingDisplay.innerHTML = `<span class="badge" style="background: linear-gradient(135deg, var(--neon-yellow) 0%, var(--neon-orange) 100%); color: #000; padding: 8px 15px;">&#11088; Rating: ${rating}/5</span>`;
+            } else {
+                showFeedback(widget, data.error || 'Failed to submit rating', 'danger');
+            }
+        })
+        .catch(error => {
+            showFeedback(widget, 'Network error. Please try again.', 'danger');
+        })
+        .finally(() => {
+            btn.disabled = false;
+            btn.innerHTML = 'Submit Rating';
+        });
+    }
+
+    function showFeedback(widget, message, type) {
+        const feedback = widget.querySelector('.rating-feedback');
+        feedback.innerHTML = `<div class="alert alert-${type} py-2 mb-0">${message}</div>`;
+        setTimeout(() => {
+            feedback.innerHTML = '';
+        }, 3000);
+    }
+});
+</script>
+{% endblock %}
