@@ -5,28 +5,30 @@ from datetime import datetime
 
 class PromptRequest(BaseModel):
     """Request schema for prompting all models."""
-    prompt: str = Field(..., min_length=1, max_length=10000, description="The prompt to send to all models")
-    system_prompt: Optional[str] = Field(None, max_length=5000, description="Optional system prompt for context")
+    prompt: str = Field(..., min_length=1, max_length=10000, description="The prompt to send to attacker models")
 
 
 class PromptResponse(BaseModel):
-    """Response schema containing responses from all models."""
-    responses: Dict[str, str] = Field(..., description="Dictionary mapping model names to their responses")
+    """Response schema containing injection attempts and target responses."""
+    session_id: str = Field(..., description="Unique session identifier")
+    injection_attempts: Dict[str, str] = Field(..., description="Dictionary mapping attacker model names to their injection attempts")
+    target_responses: Dict[str, str] = Field(..., description="Dictionary mapping attacker model names to the target model's responses")
 
 
 class GradeItem(BaseModel):
-    """Individual grade for a model."""
-    llama: int = Field(..., ge=1, le=5, description="Rating for llama model (1-5)")
-    mistral: int = Field(..., ge=1, le=5, description="Rating for mistral model (1-5)")
-    gemma: int = Field(..., ge=1, le=5, description="Rating for gemma model (1-5)")
+    """Individual grades for target responses (keyed by attacker name)."""
+    llama: int = Field(..., ge=1, le=5, description="Rating for target's response to llama's attempt (1-5)")
+    deepseek: int = Field(..., ge=1, le=5, description="Rating for target's response to deepseek's attempt (1-5)")
+    gemma: int = Field(..., ge=1, le=5, description="Rating for target's response to gemma's attempt (1-5)")
 
 
 class RatingRequest(BaseModel):
     """Request schema for submitting ratings."""
-    id: str = Field(..., description="The call ID to associate ratings with")
+    id: str = Field(..., description="The session ID to associate ratings with")
     prompt: Optional[str] = Field(None, description="The original prompt (for storage)")
-    responses: Optional[Dict[str, str]] = Field(None, description="The model responses (for storage)")
-    grades: GradeItem = Field(..., description="Ratings for each model")
+    injection_attempts: Optional[Dict[str, str]] = Field(None, description="The injection attempts (for storage)")
+    target_responses: Optional[Dict[str, str]] = Field(None, description="The target responses (for storage)")
+    grades: GradeItem = Field(..., description="Ratings for each target response")
 
 
 class RatingResponse(BaseModel):
@@ -55,5 +57,12 @@ class HistoryResponse(BaseModel):
 class HealthResponse(BaseModel):
     """Response schema for health check."""
     status: str = Field(..., description="Health status")
-    models: List[str] = Field(..., description="Available model names")
+    attacker_models: List[str] = Field(..., description="Available attacker model names")
+    target_model: str = Field(..., description="Target model name")
     database: str = Field(..., description="Database connection status")
+
+
+class ModelsResponse(BaseModel):
+    """Response schema for models endpoint."""
+    attacker_models: List[str] = Field(..., description="Available attacker model names")
+    target_model: str = Field(..., description="Target model name")

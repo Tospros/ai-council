@@ -252,10 +252,54 @@ body {
     color: rgba(255, 255, 255, 0.95);
 }
 
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-top: 24px;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.section-title {
+    margin: 0;
+    font-size: 20px;
+}
+
 .grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
     gap: 20px;
+}
+
+.injection-card {
+    border-left: 4px solid #f59e0b;
+}
+
+.target-card {
+    border-left: 4px solid #8b5cf6;
+}
+
+.badge {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 4px 10px;
+    border-radius: 6px;
+}
+
+.attacker-badge {
+    background: rgba(245, 158, 11, 0.3);
+    color: #fbbf24;
+    border: 1px solid rgba(245, 158, 11, 0.5);
+}
+
+.rating-card {
+    margin-top: 24px;
 }
 
 .response {

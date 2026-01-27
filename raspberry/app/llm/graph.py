@@ -1,238 +1,142 @@
-from typing import TypedDict, Annotated, Dict, List, Any, Optional
+from typing import TypedDict, Dict, List, Optional
 from langgraph.graph import StateGraph, END
-from langchain_core.messages import HumanMessage
 import asyncio
 
 from app.llm.service import LLMService, get_llm_service
 
 
-class CouncilState(TypedDict):
-    """State for the AI Council graph."""
-    prompt: str
-    system_prompt: Optional[str]
-    responses: Dict[str, str]
-    aggregated_response: Optional[str]
+class InjectionState(TypedDict):
+    """State for the injection testing graph."""
+    user_prompt: str
+    injection_attempts: Dict[str, str]
+    target_responses: Dict[str, str]
     errors: List[str]
 
 
-class CouncilGraph:
+class InjectionGraph:
     """
-    LangGraph-based workflow for querying multiple LLM models in the AI Council.
-    
-    This graph orchestrates parallel queries to multiple LLM models and can
-    optionally aggregate their responses.
+    LangGraph-based workflow for prompt injection testing.
+
+    This graph orchestrates:
+    1. Parallel queries to attacker models to generate injection attempts
+    2. Parallel queries to target model with each injection attempt
     """
-    
+
     def __init__(self, llm_service: Optional[LLMService] = None):
         self.llm_service = llm_service or get_llm_service()
         self.graph = self._build_graph()
-    
+
     def _build_graph(self) -> StateGraph:
         """Build the LangGraph workflow."""
-        
-        # Define the graph
-        workflow = StateGraph(CouncilState)
-        
+        workflow = StateGraph(InjectionState)
+
         # Add nodes
-        workflow.add_node("query_llama", self._query_llama)
-        workflow.add_node("query_mistral", self._query_mistral)
-        workflow.add_node("query_gemma", self._query_gemma)
-        workflow.add_node("collect_responses", self._collect_responses)
-        
-        # Set entry point - we'll use a fan-out pattern
-        workflow.set_entry_point("query_llama")
-        
-        # Add edges for parallel execution simulation
-        # In practice, all models will be queried, then responses collected
-        workflow.add_edge("query_llama", "query_mistral")
-        workflow.add_edge("query_mistral", "query_gemma")
-        workflow.add_edge("query_gemma", "collect_responses")
-        workflow.add_edge("collect_responses", END)
-        
+        workflow.add_node("query_attackers", self._query_attackers)
+        workflow.add_node("query_target", self._query_target)
+        workflow.add_node("collect_results", self._collect_results)
+
+        # Set entry point
+        workflow.set_entry_point("query_attackers")
+
+        # Add edges
+        workflow.add_edge("query_attackers", "query_target")
+        workflow.add_edge("query_target", "collect_results")
+        workflow.add_edge("collect_results", END)
+
         return workflow.compile()
-    
-    async def _query_llama(self, state: CouncilState) -> CouncilState:
-        """Query the Llama model."""
-        try:
-            response = await self.llm_service.query_model(
-                "llama", 
-                state["prompt"],
-                state.get("system_prompt")
-            )
-            state["responses"]["llama"] = response
-        except Exception as e:
-            state["responses"]["llama"] = f"Błąd: {str(e)}"
-            state["errors"].append(f"llama: {str(e)}")
+
+    async def _query_attackers(self, state: InjectionState) -> InjectionState:
+        """Query all attacker models in parallel to generate injection attempts."""
+        attacker_keys = self.llm_service.available_attacker_models
+        tasks = [
+            self.llm_service.query_attacker_model(key, state["user_prompt"])
+            for key in attacker_keys
+        ]
+
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        for key, result in zip(attacker_keys, results):
+            if isinstance(result, Exception):
+                state["injection_attempts"][key] = f"Error: {str(result)}"
+                state["errors"].append(f"attacker_{key}: {str(result)}")
+            else:
+                state["injection_attempts"][key] = result
+
         return state
-    
-    async def _query_mistral(self, state: CouncilState) -> CouncilState:
-        """Query the Mistral model."""
-        try:
-            response = await self.llm_service.query_model(
-                "mistral",
-                state["prompt"],
-                state.get("system_prompt")
-            )
-            state["responses"]["mistral"] = response
-        except Exception as e:
-            state["responses"]["mistral"] = f"Błąd: {str(e)}"
-            state["errors"].append(f"mistral: {str(e)}")
+
+    async def _query_target(self, state: InjectionState) -> InjectionState:
+        """Query target model with each injection attempt in parallel."""
+        attacker_keys = list(state["injection_attempts"].keys())
+        tasks = [
+            self.llm_service.query_target_model(state["injection_attempts"][key])
+            for key in attacker_keys
+        ]
+
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        for key, result in zip(attacker_keys, results):
+            if isinstance(result, Exception):
+                state["target_responses"][key] = f"Error: {str(result)}"
+                state["errors"].append(f"target_{key}: {str(result)}")
+            else:
+                state["target_responses"][key] = result
+
         return state
-    
-    async def _query_gemma(self, state: CouncilState) -> CouncilState:
-        """Query the Gemma model."""
-        try:
-            response = await self.llm_service.query_model(
-                "gemma",
-                state["prompt"],
-                state.get("system_prompt")
-            )
-            state["responses"]["gemma"] = response
-        except Exception as e:
-            state["responses"]["gemma"] = f"Błąd: {str(e)}"
-            state["errors"].append(f"gemma: {str(e)}")
+
+    async def _collect_results(self, state: InjectionState) -> InjectionState:
+        """Collect and finalize results."""
         return state
-    
-    async def _collect_responses(self, state: CouncilState) -> CouncilState:
-        """Collect and optionally process all responses."""
-        # This node can be extended to aggregate or analyze responses
-        return state
-    
-    async def run(
-        self,
-        prompt: str,
-        system_prompt: Optional[str] = None
-    ) -> Dict[str, str]:
+
+    async def run(self, prompt: str) -> Dict[str, Dict[str, str]]:
         """
-        Run the council workflow to query all models.
-        
+        Run the injection workflow.
+
         Args:
             prompt: The user's prompt
-            system_prompt: Optional system prompt for context
-            
+
         Returns:
-            Dictionary mapping model names to their responses
+            Dictionary with injection_attempts and target_responses
         """
-        initial_state: CouncilState = {
-            "prompt": prompt,
-            "system_prompt": system_prompt,
-            "responses": {},
-            "aggregated_response": None,
+        initial_state: InjectionState = {
+            "user_prompt": prompt,
+            "injection_attempts": {},
+            "target_responses": {},
             "errors": []
         }
-        
-        # For better performance, we'll use the direct parallel approach
-        # instead of the sequential graph for the main use case
-        responses = await self.llm_service.query_all_models(prompt, system_prompt)
-        return responses
-    
-    async def run_with_graph(
-        self,
-        prompt: str,
-        system_prompt: Optional[str] = None
-    ) -> CouncilState:
+
+        # Use direct service method for better performance
+        result = await self.llm_service.run_injection_workflow(prompt)
+        return result
+
+    async def run_with_graph(self, prompt: str) -> InjectionState:
         """
-        Run the full graph workflow (sequential but can be extended).
-        
+        Run the full graph workflow (for debugging/visualization).
+
         Args:
             prompt: The user's prompt
-            system_prompt: Optional system prompt for context
-            
+
         Returns:
             The final state with all responses
         """
-        initial_state: CouncilState = {
-            "prompt": prompt,
-            "system_prompt": system_prompt,
-            "responses": {},
-            "aggregated_response": None,
+        initial_state: InjectionState = {
+            "user_prompt": prompt,
+            "injection_attempts": {},
+            "target_responses": {},
             "errors": []
         }
-        
+
         result = await self.graph.ainvoke(initial_state)
         return result
 
 
-class ParallelCouncilGraph:
+def create_injection_graph(llm_service: Optional[LLMService] = None) -> InjectionGraph:
     """
-    A more advanced LangGraph implementation using parallel execution.
-    This version queries all models truly in parallel using asyncio.
-    """
-    
-    def __init__(self, llm_service: Optional[LLMService] = None):
-        self.llm_service = llm_service or get_llm_service()
-        self.graph = self._build_graph()
-    
-    def _build_graph(self) -> StateGraph:
-        """Build a graph with parallel model queries."""
-        
-        workflow = StateGraph(CouncilState)
-        
-        # Add nodes
-        workflow.add_node("query_all_parallel", self._query_all_parallel)
-        workflow.add_node("post_process", self._post_process)
-        
-        # Set entry point
-        workflow.set_entry_point("query_all_parallel")
-        
-        # Add edges
-        workflow.add_edge("query_all_parallel", "post_process")
-        workflow.add_edge("post_process", END)
-        
-        return workflow.compile()
-    
-    async def _query_all_parallel(self, state: CouncilState) -> CouncilState:
-        """Query all models in parallel."""
-        responses = await self.llm_service.query_all_models(
-            state["prompt"],
-            state.get("system_prompt")
-        )
-        state["responses"] = responses
-        return state
-    
-    async def _post_process(self, state: CouncilState) -> CouncilState:
-        """Post-process the responses (can be extended for aggregation)."""
-        # Example: Could aggregate responses, extract common themes, etc.
-        return state
-    
-    async def run(
-        self,
-        prompt: str,
-        system_prompt: Optional[str] = None
-    ) -> Dict[str, str]:
-        """
-        Run the parallel council workflow.
-        
-        Args:
-            prompt: The user's prompt
-            system_prompt: Optional system prompt for context
-            
-        Returns:
-            Dictionary mapping model names to their responses
-        """
-        initial_state: CouncilState = {
-            "prompt": prompt,
-            "system_prompt": system_prompt,
-            "responses": {},
-            "aggregated_response": None,
-            "errors": []
-        }
-        
-        result = await self.graph.ainvoke(initial_state)
-        return result["responses"]
+    Create an injection graph instance.
 
-
-# Factory function for creating council graphs
-def create_council_graph(parallel: bool = True) -> CouncilGraph | ParallelCouncilGraph:
-    """
-    Create a council graph instance.
-    
     Args:
-        parallel: Whether to use parallel execution (recommended)
-        
+        llm_service: Optional LLM service instance
+
     Returns:
-        A council graph instance
+        An injection graph instance
     """
-    if parallel:
-        return ParallelCouncilGraph()
-    return CouncilGraph()
+    return InjectionGraph(llm_service)

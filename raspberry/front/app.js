@@ -1,4 +1,5 @@
-let MODELS = ["llama", "mistral", "gemma"];
+let ATTACKER_MODELS = ["llama", "deepseek", "gemma"];
+let TARGET_MODEL = "mistral:7b";
 
 const elements = {
     form: document.getElementById("prompt-form"),
@@ -6,24 +7,28 @@ const elements = {
     send: document.getElementById("send"),
     status: document.getElementById("status"),
     results: document.getElementById("results"),
-    grid: document.getElementById("responses-grid"),
+    injectionGrid: document.getElementById("injection-grid"),
+    targetGrid: document.getElementById("target-grid"),
     charCount: document.getElementById("char-count"),
     callId: document.getElementById("call-id"),
     apiBase: document.getElementById("api-base"),
     submitRatings: document.getElementById("submit-ratings"),
-    ratingsStatus: document.getElementById("ratings-status")
+    ratingsStatus: document.getElementById("ratings-status"),
+    targetModelName: document.getElementById("target-model-name")
 };
 
 const state = {
-    callId: null,
-    responses: null,
+    sessionId: null,
+    prompt: null,
+    injectionAttempts: null,
+    targetResponses: null,
     grades: {},
     busy: false
 };
 
 function initGrades() {
     state.grades = {};
-    MODELS.forEach(m => state.grades[m] = null);
+    ATTACKER_MODELS.forEach(m => state.grades[m] = null);
 }
 
 function getApiBaseUrl() {
@@ -62,11 +67,6 @@ function setBusy(busy) {
     elements.prompt.disabled = busy;
 }
 
-function newCallId() {
-    if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
-    return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
 function escapeText(value) {
     const div = document.createElement("div");
     div.textContent = value == null ? "" : String(value);
@@ -78,18 +78,18 @@ function updateCharCount() {
 }
 
 function gradesReady() {
-    return MODELS.length > 0 && MODELS.every((m) => Number.isInteger(state.grades[m]) && state.grades[m] >= 1 && state.grades[m] <= 5);
+    return ATTACKER_MODELS.length > 0 && ATTACKER_MODELS.every((m) => Number.isInteger(state.grades[m]) && state.grades[m] >= 1 && state.grades[m] <= 5);
 }
 
 function updateSubmitRatingsEnabled() {
-    elements.submitRatings.disabled = !state.callId || !state.responses || !gradesReady();
+    elements.submitRatings.disabled = !state.sessionId || !state.targetResponses || !gradesReady();
 }
 
-function renderResponses(responses) {
-    elements.grid.textContent = "";
-    MODELS.forEach((model) => {
+function renderInjectionAttempts(attempts) {
+    elements.injectionGrid.textContent = "";
+    ATTACKER_MODELS.forEach((model) => {
         const card = document.createElement("article");
-        card.className = "card";
+        card.className = "card injection-card";
 
         const header = document.createElement("div");
         header.className = "row";
@@ -98,6 +98,38 @@ function renderResponses(responses) {
         const h = document.createElement("div");
         h.className = "h3";
         h.textContent = model;
+        left.appendChild(h);
+
+        const badge = document.createElement("span");
+        badge.className = "badge attacker-badge";
+        badge.textContent = "ATTACKER";
+
+        header.appendChild(left);
+        header.appendChild(badge);
+
+        const body = document.createElement("pre");
+        body.className = "response";
+        body.textContent = escapeText(attempts && attempts[model]);
+
+        card.appendChild(header);
+        card.appendChild(body);
+        elements.injectionGrid.appendChild(card);
+    });
+}
+
+function renderTargetResponses(responses) {
+    elements.targetGrid.textContent = "";
+    ATTACKER_MODELS.forEach((model) => {
+        const card = document.createElement("article");
+        card.className = "card target-card";
+
+        const header = document.createElement("div");
+        header.className = "row";
+
+        const left = document.createElement("div");
+        const h = document.createElement("div");
+        h.className = "h3";
+        h.textContent = `via ${model}`;
         left.appendChild(h);
 
         const rating = document.createElement("div");
@@ -135,7 +167,7 @@ function renderResponses(responses) {
 
         card.appendChild(header);
         card.appendChild(body);
-        elements.grid.appendChild(card);
+        elements.targetGrid.appendChild(card);
     });
 }
 
@@ -176,32 +208,36 @@ async function handleSubmit(event) {
         return;
     }
 
-    setStatus("Sending...", "info");
+    setStatus("Running injection test...", "info");
     setRatingsStatus("", "");
     setBusy(true);
 
-    state.callId = null;
-    state.responses = null;
+    state.sessionId = null;
+    state.prompt = prompt;
+    state.injectionAttempts = null;
+    state.targetResponses = null;
     initGrades();
-    elements.callId.textContent = ``;
+    elements.callId.textContent = "";
 
     const base = getApiBaseUrl();
     const promptUrl = buildUrl(base, "/api/prompt-all-models");
 
     try {
-        const data = await postJson(promptUrl, { prompt }, 180000);
+        const data = await postJson(promptUrl, { prompt }, 300000);
         if (!data || typeof data !== "object") throw new Error("Invalid response");
-        
+
         // Extract session_id from response
         if (data.session_id) {
-            state.callId = data.session_id;
-            elements.callId.textContent = `session: ${state.callId.substring(0, 8)}...`;
-            delete data.session_id;
+            state.sessionId = data.session_id;
+            elements.callId.textContent = `session: ${state.sessionId.substring(0, 8)}...`;
         }
-        
-        state.responses = data;
+
+        state.injectionAttempts = data.injection_attempts || {};
+        state.targetResponses = data.target_responses || {};
+
         elements.results.classList.remove("hidden");
-        renderResponses(state.responses);
+        renderInjectionAttempts(state.injectionAttempts);
+        renderTargetResponses(state.targetResponses);
         setStatus("Done", "success");
     } catch (e) {
         setStatus(String(e && e.message ? e.message : e), "error");
@@ -213,12 +249,12 @@ async function handleSubmit(event) {
 
 async function submitRatings() {
     if (state.busy) return;
-    if (!state.callId || !state.responses) {
-        setRatingsStatus("No completed call to rate", "error");
+    if (!state.sessionId || !state.targetResponses) {
+        setRatingsStatus("No completed test to rate", "error");
         return;
     }
     if (!gradesReady()) {
-        setRatingsStatus("Please rate all three answers", "error");
+        setRatingsStatus("Please rate all target responses", "error");
         return;
     }
 
@@ -229,7 +265,13 @@ async function submitRatings() {
     const ratingUrl = buildUrl(base, "/api/answers");
 
     try {
-        await postJson(ratingUrl, { id: state.callId, grades: state.grades }, 60000);
+        await postJson(ratingUrl, {
+            id: state.sessionId,
+            prompt: state.prompt,
+            injection_attempts: state.injectionAttempts,
+            target_responses: state.targetResponses,
+            grades: state.grades
+        }, 60000);
         setRatingsStatus("Ratings saved", "success");
     } catch (e) {
         setRatingsStatus(String(e && e.message ? e.message : e), "error");
@@ -246,7 +288,7 @@ function init() {
     elements.prompt.addEventListener("input", updateCharCount);
     elements.form.addEventListener("submit", handleSubmit);
     elements.submitRatings.addEventListener("click", submitRatings);
-    
+
     // Fetch available models from backend
     fetchModels(base);
 }
@@ -257,9 +299,15 @@ async function fetchModels(base) {
         const res = await fetch(modelsUrl);
         if (res.ok) {
             const data = await res.json();
-            if (data.models && Array.isArray(data.models)) {
-                MODELS = data.models;
+            if (data.attacker_models && Array.isArray(data.attacker_models)) {
+                ATTACKER_MODELS = data.attacker_models;
                 initGrades();
+            }
+            if (data.target_model) {
+                TARGET_MODEL = data.target_model;
+                if (elements.targetModelName) {
+                    elements.targetModelName.textContent = TARGET_MODEL;
+                }
             }
         }
     } catch (e) {
