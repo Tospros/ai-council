@@ -1,5 +1,5 @@
-let ATTACKER_MODELS = ["llama", "deepseek", "gemma"];
-let TARGET_MODEL = "qwen2.5:3b";
+let ATTACKER_MODELS = ["llama", "qwen", "gemma"];
+let TARGET_MODEL = "qwen2.5:1.5b";
 
 const elements = {
     form: document.getElementById("prompt-form"),
