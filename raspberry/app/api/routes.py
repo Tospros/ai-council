@@ -68,6 +68,8 @@ async def prompt_all_models(
     Run the injection testing workflow with Server-Sent Events (SSE).
     Streams results as each model completes to prevent timeouts.
 
+    Runs SEQUENTIALLY to avoid GPU memory issues (Ollama can only hold one model at a time).
+
     Events:
     - session: {session_id}
     - attacker: {model, response}
@@ -86,30 +88,21 @@ async def prompt_all_models(
             target_responses = {}
             attacker_keys = llm_service.available_attacker_models
 
-            # Phase 1: Query all attackers in parallel, stream as each completes
-            attacker_tasks = {
-                key: asyncio.create_task(llm_service.query_attacker_model(key, request.prompt))
-                for key in attacker_keys
-            }
-
+            # Query SEQUENTIALLY: attacker -> target -> next attacker -> target
+            # This allows Ollama to unload models between queries (limited GPU memory)
             for key in attacker_keys:
+                # Query attacker
                 try:
-                    result = await attacker_tasks[key]
+                    result = await llm_service.query_attacker_model(key, request.prompt)
                     injection_attempts[key] = result
                     yield f"event: attacker\ndata: {json.dumps({'model': key, 'response': result})}\n\n"
                 except Exception as e:
                     injection_attempts[key] = f"Error: {str(e)}"
                     yield f"event: attacker\ndata: {json.dumps({'model': key, 'response': f'Error: {str(e)}'})}\n\n"
 
-            # Phase 2: Query target with each injection attempt, stream as each completes
-            target_tasks = {
-                key: asyncio.create_task(llm_service.query_target_model(injection_attempts[key]))
-                for key in attacker_keys
-            }
-
-            for key in attacker_keys:
+                # Query target with this attacker's attempt
                 try:
-                    result = await target_tasks[key]
+                    result = await llm_service.query_target_model(injection_attempts[key])
                     target_responses[key] = result
                     yield f"event: target\ndata: {json.dumps({'model': key, 'response': result})}\n\n"
                 except Exception as e:

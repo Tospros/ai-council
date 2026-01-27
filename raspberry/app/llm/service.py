@@ -144,8 +144,8 @@ class LLMService:
     ) -> Dict[str, Any]:
         """
         Run the complete injection workflow:
-        1. Query all attacker models to generate injection attempts
-        2. Send each injection attempt to the target model
+        1. Query all attacker models to generate injection attempts (sequentially to avoid OOM)
+        2. Send each injection attempt to the target model (sequentially)
         3. Return both injection attempts and target responses
 
         Args:
@@ -154,34 +154,24 @@ class LLMService:
         Returns:
             Dictionary with injection_attempts and target_responses
         """
-        # Step 1: Query all attackers in parallel
-        attacker_tasks = [
-            self.query_attacker_model(model_key, prompt)
-            for model_key in self._attacker_models.keys()
-        ]
         attacker_keys = list(self._attacker_models.keys())
-
         injection_attempts = {}
-        attacker_results = await asyncio.gather(*attacker_tasks, return_exceptions=True)
-        for key, result in zip(attacker_keys, attacker_results):
-            if isinstance(result, Exception):
-                injection_attempts[key] = f"Error: {str(result)}"
-            else:
-                injection_attempts[key] = result
-
-        # Step 2: Query target model with each injection attempt in parallel
-        target_tasks = [
-            self.query_target_model(injection_attempts[key])
-            for key in attacker_keys
-        ]
-
         target_responses = {}
-        target_results = await asyncio.gather(*target_tasks, return_exceptions=True)
-        for key, result in zip(attacker_keys, target_results):
-            if isinstance(result, Exception):
-                target_responses[key] = f"Error: {str(result)}"
-            else:
-                target_responses[key] = result
+
+        # Query attackers and target SEQUENTIALLY to avoid GPU memory issues
+        # Ollama can only hold one model in memory at a time on limited hardware
+        for key in attacker_keys:
+            # Step 1: Query attacker
+            try:
+                injection_attempts[key] = await self.query_attacker_model(key, prompt)
+            except Exception as e:
+                injection_attempts[key] = f"Error: {str(e)}"
+
+            # Step 2: Query target with this attacker's attempt
+            try:
+                target_responses[key] = await self.query_target_model(injection_attempts[key])
+            except Exception as e:
+                target_responses[key] = f"Error: {str(e)}"
 
         return {
             "injection_attempts": injection_attempts,
