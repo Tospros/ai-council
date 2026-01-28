@@ -1,13 +1,9 @@
-"""
-Django settings for LLM Red Team frontend.
-"""
 import os
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent
 PROJECT_DIR = BASE_DIR.parent
 
-# Add parent directory to sys.path for imports
 import sys
 sys.path.insert(0, str(PROJECT_DIR))
 
@@ -76,5 +72,4 @@ STATICFILES_DIRS = [BASE_DIR / 'static']
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# Async support
 ASGI_APPLICATION = 'asgi.application'

@@ -1,6 +1,3 @@
-"""
-ASGI config for LLM Red Team frontend.
-"""
 import os
 
 from django.core.asgi import get_asgi_application

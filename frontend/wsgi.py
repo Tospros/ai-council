@@ -1,6 +1,3 @@
-"""
-WSGI config for LLM Red Team frontend.
-"""
 import os
 
 from django.core.wsgi import get_wsgi_application

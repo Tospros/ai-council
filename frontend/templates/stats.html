@@ -1,11 +1,11 @@
 {% extends 'base.html' %}
 
-{% block title %}Statistics - LLM Red Team{% endblock %}
+{% block title %}Statistics - AI COUNCIL{% endblock %}
 
 {% block content %}
 <div class="row">
     <div class="col-lg-10 mx-auto">
-        <h2 class="mb-4" style="color: var(--neon-cyan);">&#128202; Model Statistics</h2>
+        <h2 class="mb-4" style="color: var(--neon-cyan);">Model Statistics</h2>
 
         {% if stats %}
         <div class="row">
@@ -67,10 +67,9 @@
             {% endfor %}
         </div>
 
-        <!-- Leaderboard -->
         <div class="card mt-4">
             <div class="card-header">
-                <h5 class="mb-0">&#127942; Leaderboard</h5>
+                <h5 class="mb-0">Leaderboard</h5>
             </div>
             <div class="card-body">
                 <table class="table table-dark table-hover">
@@ -87,15 +86,7 @@
                         {% for stat in stats %}
                         <tr>
                             <td>
-                                {% if forloop.counter == 1 %}
-                                    <span style="font-size: 1.5rem;">&#129351;</span>
-                                {% elif forloop.counter == 2 %}
-                                    <span style="font-size: 1.5rem;">&#129352;</span>
-                                {% elif forloop.counter == 3 %}
-                                    <span style="font-size: 1.5rem;">&#129353;</span>
-                                {% else %}
-                                    <span style="color: var(--neon-cyan);">{{ forloop.counter }}</span>
-                                {% endif %}
+                                <span style="color: var(--neon-cyan);">{{ forloop.counter }}</span>
                             </td>
                             <td>
                                 <span class="badge model-badge
@@ -107,7 +98,7 @@
                             </td>
                             <td style="color: var(--neon-yellow);">
                                 {% if stat.average_rating %}
-                                    &#11088; {{ stat.average_rating|floatformat:2 }}
+                                    {{ stat.average_rating|floatformat:2 }}
                                 {% else %}
                                     -
                                 {% endif %}
@@ -123,13 +114,13 @@
 
         {% else %}
         <div class="alert alert-info">
-            &#128640; No statistics available yet. Run some jailbreak tests to see model performance!
+            No statistics available yet. Run some jailbreak tests to see model performance!
         </div>
         {% endif %}
 
         <div class="mt-4">
             <a href="{% url 'index' %}" class="btn btn-secondary">
-                &#8592; Back to Home
+                Back to Home
             </a>
         </div>
     </div>

@@ -1,6 +1,3 @@
-"""
-Backend services for jailbreak testing.
-"""
 from datetime import datetime
 from typing import List, Optional
 from sqlalchemy.orm import Session
@@ -15,24 +12,19 @@ from agents import get_orchestrator, JailbreakResult
 
 
 class JailbreakService:
-    """Service for managing jailbreak sessions and attempts."""
 
     def __init__(self, db: Session):
         self.db = db
 
     async def run_jailbreak_test(self, original_prompt: str) -> JailbreakSession:
-        """Run a full jailbreak test and save results to database."""
-        # Create session
         session = JailbreakSession(original_prompt=original_prompt)
         self.db.add(session)
         self.db.commit()
         self.db.refresh(session)
 
-        # Run orchestrator
         orchestrator = get_orchestrator()
         results = await orchestrator.run(original_prompt)
 
-        # Save attempts
         for result in results:
             attempt = JailbreakAttempt(
                 session_id=session.id,
@@ -43,7 +35,6 @@ class JailbreakService:
             )
             self.db.add(attempt)
 
-            # Update model stats
             self._update_model_stats(result.attacker_model)
 
         self.db.commit()
@@ -52,19 +43,16 @@ class JailbreakService:
         return session
 
     def get_session(self, session_id: int) -> Optional[JailbreakSession]:
-        """Get a jailbreak session by ID."""
         return self.db.query(JailbreakSession).filter(
             JailbreakSession.id == session_id
         ).first()
 
     def get_all_sessions(self, limit: int = 50) -> List[JailbreakSession]:
-        """Get all jailbreak sessions."""
         return self.db.query(JailbreakSession).order_by(
             JailbreakSession.created_at.desc()
         ).limit(limit).all()
 
     def get_attempt(self, attempt_id: int) -> Optional[JailbreakAttempt]:
-        """Get a jailbreak attempt by ID."""
         return self.db.query(JailbreakAttempt).filter(
             JailbreakAttempt.id == attempt_id
         ).first()
@@ -75,7 +63,6 @@ class JailbreakService:
         rating: float,
         comment: Optional[str] = None
     ) -> Optional[JailbreakAttempt]:
-        """Rate a jailbreak attempt."""
         attempt = self.get_attempt(attempt_id)
         if not attempt:
             return None
@@ -84,7 +71,6 @@ class JailbreakService:
         attempt.rating_comment = comment
         attempt.rated_at = datetime.utcnow()
 
-        # Update model stats with new rating
         self._update_model_stats_with_rating(attempt.attacker_model, rating)
 
         self.db.commit()
@@ -93,11 +79,9 @@ class JailbreakService:
         return attempt
 
     def get_model_stats(self) -> List[ModelStats]:
-        """Get statistics for all models."""
         return self.db.query(ModelStats).all()
 
     def _update_model_stats(self, model_name: str) -> None:
-        """Update model stats after an attempt."""
         stats = self.db.query(ModelStats).filter(
             ModelStats.model_name == model_name
         ).first()
@@ -119,13 +103,11 @@ class JailbreakService:
         model_name: str,
         new_rating: float
     ) -> None:
-        """Update model stats with a new rating."""
         stats = self.db.query(ModelStats).filter(
             ModelStats.model_name == model_name
         ).first()
 
         if stats:
-            # Recalculate average
             total = stats.average_rating * stats.total_ratings + new_rating
             stats.total_ratings += 1
             stats.average_rating = total / stats.total_ratings
@@ -133,5 +115,4 @@ class JailbreakService:
 
 
 def get_jailbreak_service(db: Session) -> JailbreakService:
-    """Factory function for JailbreakService."""
     return JailbreakService(db)
