@@ -1,10 +1,3 @@
-"""Initial migration - create tables
-
-Revision ID: 001_initial
-Revises:
-Create Date: 2026-01-27
-
-"""
 from typing import Sequence, Union
 
 from alembic import op
@@ -17,7 +10,6 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Create jailbreak_sessions table
     op.create_table(
         'jailbreak_sessions',
         sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
@@ -26,7 +18,6 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint('id')
     )
 
-    # Create jailbreak_attempts table
     op.create_table(
         'jailbreak_attempts',
         sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
@@ -43,7 +34,6 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint('id')
     )
 
-    # Create model_stats table
     op.create_table(
         'model_stats',
         sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),

@@ -1,6 +1,3 @@
-"""
-URL configuration for LLM Red Team frontend.
-"""
 from django.contrib import admin
 from django.urls import path, include
 

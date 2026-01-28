@@ -1,7 +1,4 @@
 #!/usr/bin/env python
-"""
-Test Ollama connectivity and model availability.
-"""
 import asyncio
 import sys
 from pathlib import Path
@@ -19,11 +16,9 @@ except ImportError:
 
 
 async def test_ollama_connection(host: str = "localhost", port: int = 11434):
-    """Test connection to Ollama server."""
     base_url = f"http://{host}:{port}"
 
     async with httpx.AsyncClient(timeout=30.0) as client:
-        # Test basic connectivity
         print(f"\nTesting connection to {base_url}...")
         try:
             response = await client.get(f"{base_url}/api/tags")
@@ -52,7 +47,6 @@ async def test_model_generation(
     host: str = "localhost",
     port: int = 11434
 ):
-    """Test generating text with a specific model."""
     base_url = f"http://{host}:{port}"
 
     print(f"\nTesting generation with {model}...")
@@ -89,7 +83,6 @@ async def test_model_generation(
 
 
 async def main():
-    """Run Ollama tests."""
     print("=" * 60)
     print("Ollama Connectivity Test")
     print("=" * 60)
@@ -115,12 +108,10 @@ async def main():
     print("=" * 60)
 
     for model in required:
-        # Check if model name is in available (fuzzy match)
         found = any(model.lower() in name.lower() for name in available_names)
         status = "OK" if found else "MISSING"
         print(f"  {model}: {status}")
 
-    # Test generation if at least one model available
     if models:
         test_model = models[0].get("name", "")
         if test_model:

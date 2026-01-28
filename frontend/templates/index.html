@@ -1,20 +1,19 @@
 {% extends 'base.html' %}
 
-{% block title %}LLM Red Team - Home{% endblock %}
+{% block title %}AI COUNCIL - Home{% endblock %}
 
 {% block content %}
 <div class="row">
     <div class="col-lg-8 mx-auto">
-        <!-- Prompt Submission Form -->
         <div class="card mb-4 glow-effect">
             <div class="card-header">
-                <h5 class="mb-0">&#128274; Submit Prompt for Jailbreak Testing</h5>
+                <h5 class="mb-0">Submit Prompt for Jailbreak Testing</h5>
             </div>
             <div class="card-body">
                 <form action="{% url 'submit_prompt' %}" method="post">
                     {% csrf_token %}
                     <div class="mb-3">
-                        <label for="prompt" class="form-label">&#9889; Enter your prompt:</label>
+                        <label for="prompt" class="form-label">Enter your prompt:</label>
                         <textarea
                             class="form-control"
                             id="prompt"
@@ -26,7 +25,7 @@
                     </div>
                     <div class="d-grid">
                         <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">
-                            &#128640; Run Jailbreak Test
+                            Run Jailbreak Test
                         </button>
                     </div>
                 </form>
@@ -41,11 +40,10 @@
             </div>
         </div>
 
-        <!-- Model Statistics -->
         {% if stats %}
         <div class="card mb-4">
             <div class="card-header">
-                <h5 class="mb-0">&#128202; Model Performance</h5>
+                <h5 class="mb-0">Model Performance</h5>
             </div>
             <div class="card-body">
                 <div class="row">
@@ -71,10 +69,9 @@
         </div>
         {% endif %}
 
-        <!-- Recent Sessions -->
         <div class="card">
             <div class="card-header">
-                <h5 class="mb-0">&#128337; Recent Test Sessions</h5>
+                <h5 class="mb-0">Recent Test Sessions</h5>
             </div>
             <div class="card-body">
                 {% if sessions %}
@@ -96,7 +93,7 @@
                 {% else %}
                 <div class="text-center py-4">
                     <p style="color: var(--neon-cyan); font-size: 1.2rem;">
-                        &#128640; No test sessions yet. Submit a prompt to get started!
+                        No test sessions yet. Submit a prompt to get started!
                     </p>
                 </div>
                 {% endif %}
